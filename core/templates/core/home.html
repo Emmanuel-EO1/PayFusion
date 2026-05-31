@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+    
+    {% if user.is_authenticated %}
+    <div class="home-container">
+        <h1>Welcome to PayFusion</h1>
+        <div class="btn btn-sucess">
+            <a href="{% url 'cart:cart_detail' %}" class="btn btn-secondary">Go to Cart</a>
+        </div>
+    </div>
+    <form method="post" action="{% url 'users:logout' %}">
+        {% csrf_token %}
+        <div class="btn btn-sucess">
+            <button type="submit" class="btn btn-danger">Logout</button>
+        </div>
+    </form>
+    {% else %}
+        <div class="home-container">
+            <h1>Welcome to PayFusion</h1>
+            <div class="btn btn-sucess">
+                <a href="{% url 'users:login' %}" class="btn btn-primary">Login</a>
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}

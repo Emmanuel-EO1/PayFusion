@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+Payment Summary - PayFusion
+{% endblock %}
+
+{% block content %}
+
+<div class="container mt-5">
+    <h2>Order Summary</h2>
+
+    <p><strong>Transaction Ref:</strong> {{ transaction.reference }}</p>
+    <p><strong>Total:</strong> {{ transaction.amount }}</p>
+
+    <hr>
+
+    {% for order in orders %}
+        <div class="card mb-3 p-3">
+            <h5>Business: {{ order.business.name }}</h5>
+            <p>Order Ref: {{ order.reference }}</p>
+            <p>Total: {{ order.total_amount }}</p>
+
+            <ul>
+                {% for item in order.items.all %}
+                    <li>{{ item.product.name }} × {{ item.quantity }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endfor %}
+
+    <!-- <a href="{% url 'orders:initialize_paystack_payment' transaction.id %}">
+    <button>Pay Now</button>
+    </a> -->
+
+    <form method="post" action="{% url 'orders:initialize_paystack_payment' transaction.id %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-success">Pay Now</button>
+    </form>
+
+</div>
+
+{% endblock %}
+

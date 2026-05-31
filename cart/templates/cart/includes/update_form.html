@@ -1,0 +1,18 @@
+
+<form action="{% url 'cart:cart_update' item.product.id %}" method="post" class="d-flex gap-2">
+    {% csrf_token %}
+
+    <input
+        type="number"
+        name="quantity"
+        value="{{ item.quantity }}"
+        min="1"
+        class="form-control form-control-sm"
+        style="width: 70px;"
+    >
+
+    <button class="btn btn-sm btn-primary" type="submit">
+        Update
+    </button>
+</form>
+

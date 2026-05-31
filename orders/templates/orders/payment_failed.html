@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}
+Payment Failed - PayFusion
+{% endblock %}
+
+{% block content %}
+
+<div style="max-width:600px; margin:auto; padding:40px; text-align:center;">
+
+    <h1>Payment Failed</h1>
+
+    {% if message %}
+        <p>{{ message }}</p>
+    {% else %}
+        <p>Your payment could not be completed.</p>
+    {% endif %}
+
+    {% if txn %}
+        <p>
+            Transaction Reference:
+            <strong>{{ txn.reference }}</strong>
+        </p>
+
+        <p>
+            Status:
+            <strong>{{ txn.status }}</strong>
+        </p>
+
+        <br>
+
+        <a href="{% url 'orders:payment_summary' txn.id %}">
+            <button>
+                Try Again
+            </button>
+        </a>
+
+    {% else %}
+
+        <a href="{% url 'products:product_list' %}">
+            <button>
+                Return to Shop
+            </button>
+        </a>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

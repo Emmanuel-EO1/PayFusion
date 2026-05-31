@@ -1,0 +1,210 @@
+📘 Phase 1 — Django Backend Initialization & PostgreSQL Integration
+
+1. Phase Overview
+
+Phase 1 focused on initializing the backend application layer using the Django framework and integrating it with the PostgreSQL database configured in Phase 0.
+
+The goal of this phase was to establish a functional backend environment capable of communicating securely with the database while maintaining a scalable project structure suitable for a financial technology platform.
+
+This phase transforms the project from infrastructure preparation into an operational backend system.
+
+2. Virtual Environment Setup
+
+A Python virtual environment was created to isolate project dependencies from the global Python installation.
+
+Command Used
+python -m venv venv
+
+The environment was activated using:
+
+venv\Scripts\activate
+Purpose
+
+The virtual environment ensures:
+
+Dependency isolation
+
+Version consistency
+
+Reproducible development environments
+
+Prevention of system-level package conflicts
+
+Once activated, all installed packages become local to the project.
+
+3. Dependency Installation
+
+Required backend dependencies were installed:
+
+pip install django psycopg[binary]
+Installed Components
+Package	Purpose
+Django	Backend web framework
+psycopg	PostgreSQL database adapter
+
+psycopg enables Django’s ORM to communicate with PostgreSQL through a database driver implementing the PostgreSQL wire protocol.
+
+4. Django Project Initialization
+
+The Django project was created using:
+
+django-admin startproject PESOPay .
+
+The trailing period (.) instructs Django to create project files inside the current directory rather than generating a nested folder.
+
+Resulting Structure
+PESOPay/
+│
+├── PESOPay/
+│   ├── settings.py
+│   ├── urls.py
+│   ├── asgi.py
+│   └── wsgi.py
+│
+├── manage.py
+└── venv/
+Role of Project Files
+
+settings.py → Central configuration
+
+urls.py → URL routing configuration
+
+asgi.py / wsgi.py → Deployment interfaces
+
+manage.py → Django command-line utility
+
+5. Application Architecture Setup
+
+Three foundational Django applications were created:
+
+python manage.py startapp core
+python manage.py startapp users
+python manage.py startapp tenants
+Application Responsibilities
+App	Responsibility
+core	Shared utilities and base logic
+users	Authentication and user management
+tenants	Multi-tenant system foundation
+
+This modular architecture promotes separation of concerns and long-term scalability.
+
+6. Application Registration
+
+Applications were registered in INSTALLED_APPS inside settings.py:
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+
+    'core',
+    'users',
+    'tenants',
+]
+Purpose
+
+Registering apps allows Django to:
+
+Detect models
+
+Apply migrations
+
+Load configurations
+
+Enable admin integration
+
+7. PostgreSQL Database Configuration
+
+The default SQLite database configuration was replaced with PostgreSQL settings.
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'payfusion',
+        'USER': 'payfusion_user',
+        'PASSWORD': '********',
+        'HOST': 'localhost',
+        'PORT': '5432',
+    }
+}
+Explanation
+Parameter	Description
+ENGINE	PostgreSQL backend adapter
+NAME	Database created in Phase 0
+USER	Restricted application role
+PASSWORD	Authentication credential
+HOST	Database server location
+PORT	PostgreSQL service port
+
+This configuration connects Django securely to the PostgreSQL database.
+
+8. Database Migration Execution
+
+Initial migrations were applied:
+
+python manage.py migrate
+What Migrations Do
+
+Migrations translate Django models into SQL operations that create database tables.
+
+Django automatically created tables for:
+
+Authentication system
+
+Admin interface
+
+Sessions
+
+Content types
+
+Successful migration confirmed:
+
+Database connectivity
+
+Permission correctness
+
+ORM functionality
+
+9. Administrative User Creation
+
+A superuser account was created:
+
+python manage.py createsuperuser
+
+This account provides administrative access to Django’s built-in admin interface.
+
+10. Development Server Verification
+
+The server was launched using:
+
+python manage.py runserver
+
+Accessible endpoints:
+
+Application: http://127.0.0.1:8000/
+
+Admin Panel: http://127.0.0.1:8000/admin/
+
+Successful login confirmed:
+
+Backend operational
+
+Database connected
+
+Authentication system functioning
+
+11. Phase 1 Completion Summary
+Task	Status
+Virtual environment created	Completed
+Django installed	Completed
+PostgreSQL adapter installed	Completed
+Project initialized	Completed
+Core applications created	Completed
+Apps registered	Completed
+PostgreSQL configured	Completed
+Initial migrations executed	Completed
+Superuser created	Completed
+Server verified	Completed

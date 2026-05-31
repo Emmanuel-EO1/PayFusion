@@ -1,0 +1,341 @@
+PAYFUSION PLATFORM
+PHASE 3 — TENANT (BUSINESS) ARCHITECTURE IMPLEMENTATION
+1. Phase Overview
+
+Phase 3 introduced the Multi-Tenant Business Architecture into the PayFusion platform.
+At this stage of development, the system evolves from a user-only platform into a merchant-enabled financial commerce platform.
+
+Previously, the system only managed user accounts. However, PayFusion is designed to support multiple independent businesses operating on the same platform, each able to sell products, receive payments, and manage transactions.
+
+Therefore, this phase implemented the Business (Tenant) Model, which allows:
+
+Users to create and manage businesses
+
+Each business to operate independently
+
+Future platform components (products, orders, payments) to belong to a specific business
+
+This structure establishes the multi-tenant foundation required for scalable financial and e-commerce systems.
+
+2. Multi-Tenant Architecture Concept
+
+PayFusion operates using a Single Database Multi-Tenant Architecture.
+
+This means that:
+
+One database serves the entire platform
+
+Multiple businesses operate within the same database
+
+Each business maintains logical isolation of its data
+
+Conceptual structure:
+
+User
+  │
+  │ owns
+  ▼
+Business (Tenant)
+  │
+  ├── Products
+  ├── Orders
+  ├── Payments
+  └── Transactions
+
+Example real-world scenario:
+
+User: David
+
+Businesses owned:
+- David Fashion Store
+- David Electronics
+
+Each business will later maintain its own:
+
+Product catalog
+
+Orders
+
+Payment transactions
+
+Financial records
+
+This architecture ensures that although multiple businesses operate on the platform, their data remains logically separated.
+
+3. Tenants Application Registration
+
+The tenants application was registered in the Django project configuration.
+
+File modified:
+
+PESOPay/settings.py
+
+Added to INSTALLED_APPS:
+
+'tenants',
+
+Purpose:
+
+Allows Django to detect models within the tenants application
+
+Enables migration generation for tenant-related database tables
+
+Without this registration, Django would not manage the application's models.
+
+4. Business (Tenant) Model Implementation
+
+A new model named Business was created to represent merchant entities on the platform.
+
+File:
+
+tenants/models.py
+
+Model implementation:
+
+from django.db import models
+from django.conf import settings
+from django.utils.text import slugify
+
+
+class Business(models.Model):
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="businesses"
+    )
+
+    name = models.CharField(max_length=255)
+
+    slug = models.SlugField(unique=True)
+
+    email = models.EmailField()
+
+    phone = models.CharField(max_length=20)
+
+    industry = models.CharField(max_length=150)
+
+    address = models.CharField(max_length=255)
+
+    state = models.CharField(max_length=100)
+
+    country = models.CharField(max_length=100)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+
+        if not self.slug:
+            self.slug = slugify(self.name)
+
+        super().save(*args, **kwargs)
+5. Model Field Explanation
+Owner
+owner = models.ForeignKey(settings.AUTH_USER_MODEL)
+
+Defines the user who owns the business.
+
+Key behavior:
+
+One user can own multiple businesses
+
+If the owner account is deleted, the associated businesses are automatically deleted
+
+Example:
+
+User: John
+
+Businesses:
+- John Fashion
+- John Electronics
+Business Name
+name = models.CharField(max_length=255)
+
+Stores the public name of the business.
+
+This field is not unique, allowing multiple businesses to share the same name if necessary.
+
+Example:
+
+Royal Plaza (Lagos)
+Royal Plaza (Abuja)
+Royal Plaza (London)
+Slug (Unique Business Identifier)
+slug = models.SlugField(unique=True)
+
+The slug provides a URL-friendly identifier used for routing and store URLs.
+
+Example:
+
+Business Name: Nike Lagos
+Slug: nike-lagos
+
+Resulting URL structure:
+
+payfusion.com/store/nike-lagos
+
+Slugs must be globally unique across the platform.
+
+Contact Information
+email
+phone
+
+Stores official business contact details.
+
+Industry Field
+industry = models.CharField(max_length=150)
+
+Defines the category or sector of the business.
+
+Examples:
+
+Fashion
+Electronics
+Automobile
+Food Services
+Retail
+
+This field will later support business categorization and marketplace filtering.
+
+Business Address Information
+address
+state
+country
+
+Stores the physical location of the business.
+
+Example:
+
+Address: 23 Adeola Odeku
+State: Lagos
+Country: Nigeria
+
+This supports regional identification and merchant verification.
+
+Timestamp Fields
+created_at
+updated_at
+
+These fields automatically record:
+
+When the business was created
+
+When the business information was last updated
+
+This is critical for auditing and transaction history in financial systems.
+
+6. Automatic Slug Generation
+
+The model overrides the default save() method to automatically generate a slug.
+
+if not self.slug:
+    self.slug = slugify(self.name)
+
+Example conversion:
+
+Nike Lagos Store
+→ nike-lagos-store
+
+This ensures that every business has a URL-compatible identifier.
+
+7. Database Migration
+
+Database schema changes were generated using Django migrations.
+
+Command executed:
+
+python manage.py makemigrations tenants
+
+Migration applied using:
+
+python manage.py migrate
+
+This created the following database table:
+
+tenants_business
+
+The table stores all registered businesses on the PayFusion platform.
+
+8. Django Admin Integration
+
+The Business model was registered within the Django admin interface.
+
+File:
+
+tenants/admin.py
+
+Implementation:
+
+from django.contrib import admin
+from .models import Business
+
+
+@admin.register(Business)
+class BusinessAdmin(admin.ModelAdmin):
+
+    list_display = (
+        "name",
+        "owner",
+        "industry",
+        "state",
+        "country",
+        "created_at"
+    )
+
+    search_fields = (
+        "name",
+        "industry",
+        "state"
+    )
+
+    prepopulated_fields = {"slug": ("name",)}
+
+Admin functionality now includes:
+
+Business listing
+
+Business search capability
+
+Automatic slug generation
+
+Owner identification
+
+9. Phase 3 Outcome
+
+At the completion of Phase 3, the PayFusion platform now supports:
+
+User accounts
+
+Business accounts
+
+Ownership relationships between users and businesses
+
+Multi-tenant merchant architecture
+
+Admin-level business management
+
+The system can now manage multiple independent merchants operating within the same platform environment.
+
+10. Architectural Significance
+
+Phase 3 establishes the merchant layer of the PayFusion platform.
+
+Without this layer:
+
+Products cannot belong to a business
+
+Orders cannot be assigned to merchants
+
+Payments cannot be tracked per merchant
+
+Marketplace functionality cannot exist
+
+This phase therefore forms the core structural backbone of the platform's commerce and financial capabilities.

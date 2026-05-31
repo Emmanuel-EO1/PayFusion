@@ -1,0 +1,21 @@
+<tr>
+    <td class="ps-4">
+        <div>
+            <h6 class="mb-0 fw-bold">{{ item.product.name }}</h6>
+            <small class="text-muted">{{ item.product.category }}</small>
+        </div>
+    </td>
+    <td>{{ item.price|floatformat:2 }} USD</td>
+    <td>
+        {% include "cart/includes/update_form.html" %}
+    </td>
+    <td>
+        <span class="fw-bold text-dark">{{ item.total|floatformat:2 }} USD</span>
+    </td>
+    <td class="text-center">
+        <form action="{% url 'cart:cart_remove' item.product.id %}" method="post">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-danger px-3">X</button>
+        </form>
+    </td>
+</tr>

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+<div class="container mt-5 text-center">
+    <h2>Withdrawal Initiated</h2>
+    <p>Your request for ₦{{ txn.amount }} is being processed.</p>
+    <p>Reference: {{ txn.reference }}</p>
+    <p>Status: <strong>{{ txn.status }}</strong></p>
+    <a href="{% url 'users:dashboard' %}">Back to Dashboard</a>
+</div>
+
+{% endblock %}
+

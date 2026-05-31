@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+<form action="{% url 'cart:cart_add' product.id %}" method="post" class="mt-3">
+    {% csrf_token %}
+
+    <div class="d-flex align-items-center gap-2">
+
+        <!-- Quantity Input -->
+        <input 
+            type="number" 
+            name="quantity" 
+            value="1" 
+            min="1" 
+            class="form-control" 
+            style="width: 80px;"
+        >
+
+        <!-- Hidden Override Field -->
+        <input type="hidden" name="override" value="False">
+
+        <!-- Add to Cart Button -->
+        <button type="submit" class="btn btn-primary">
+            Add to Cart
+        </button>
+
+    </div>
+</form>
+{% endblock %}

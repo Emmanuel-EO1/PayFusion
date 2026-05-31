@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-5">
+
+    <h2>Payment Processing</h2>
+
+    <p>
+        Your payment was received successfully.
+    </p>
+
+    <p>
+        We are currently confirming it securely with Paystack.
+    </p>
+
+    <p>
+        Please refresh this page in a few seconds.
+    </p>
+
+    <a href="{% url 'orders:payment_summary' txn.id %}">
+        Back to Order Summary
+    </a>
+
+</div>
+
+{% endblock %}

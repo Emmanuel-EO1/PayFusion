@@ -1,0 +1,222 @@
+PAYFUSION — PROJECT OVERVIEW AND DEVELOPMENT PHASE BREAKDOWN
+(Project Documentation – Master Overview)
+
+PROJECT NAME
+
+PayFusion
+
+PROJECT OVERVIEW
+
+PayFusion is a global multi-tenant digital commerce and payment platform designed to allow businesses to create and operate their own digital storefronts while customers interact with all businesses through a unified platform account.
+
+The platform combines elements of modern e-commerce infrastructure, payment processing systems, and merchant management tools into a single integrated system.
+
+Unlike traditional single-store e-commerce applications, PayFusion is designed as a platform where multiple independent businesses (tenants) can operate simultaneously under the same system while maintaining strict data isolation.
+
+Customers on the platform will be able to:
+
+• Create one global platform account
+• Discover and browse businesses across different industries
+• Purchase products or services remotely
+• Make payments digitally without physical presence
+• Track orders and payment history
+• Interact with multiple merchants from a single interface
+
+Businesses on the platform will be able to:
+
+• Register their company on the platform
+• Manage their own digital storefront
+• List products or services for sale
+• Accept digital payments from customers
+• Generate payment links and QR payments for physical checkout
+• Manage orders, sales, and transactions
+• Access dashboards and financial reporting tools
+
+The system is designed to support both remote digital commerce and in-store payments. This ensures that customers can complete transactions whether they are physically present at a business location or purchasing from anywhere in the world.
+
+Examples of supported use cases include:
+
+• Online product purchases from home
+• Payment links sent by merchants
+• QR-code based in-store checkout
+• Digital service payments
+• Platform-based marketplace transactions
+
+The core architectural concept of PayFusion is strict multi-tenancy, meaning that many businesses share the same application infrastructure while their operational data remains securely isolated.
+
+This allows the platform to scale to thousands of businesses without requiring separate application deployments.
+
+The system is being developed using the following primary technologies:
+
+Backend Framework: Django
+API Layer: Django REST Framework
+Database System: PostgreSQL
+Architecture Pattern: Multi-Tenant Platform (Single Database with Tenant Isolation)
+
+The platform will eventually support additional infrastructure such as containerization, payment gateway integration, and scalable deployment environments.
+
+TARGET USERS
+
+PayFusion serves two primary user groups.
+
+Customers (Global Platform Users)
+
+Customers create a single account on the platform and use that account to interact with multiple businesses.
+
+Capabilities include:
+
+• Account registration and authentication
+• Browsing businesses and product listings
+• Adding products to cart
+• Making secure digital payments
+• Managing order history
+• Accessing invoices and payment records
+
+Merchants / Businesses (Tenants)
+
+Merchants represent independent companies operating within the platform.
+
+Capabilities include:
+
+• Business registration
+• Business profile management
+• Product and service listing
+• Order management
+• Payment management
+• Transaction analytics
+
+Each merchant operates independently while the platform infrastructure manages authentication, payments, and data integrity.
+
+CORE ARCHITECTURAL PRINCIPLES
+
+The system is designed around several key architectural principles.
+
+Multi-Tenant Platform Design
+
+Multiple companies share the same backend infrastructure while their data remains logically isolated.
+
+Single Global Customer Identity
+
+Customers maintain one universal account across all businesses on the platform.
+
+Payment System Integration
+
+The platform will support digital payments, remote checkout, QR-based transactions, and merchant payment tools.
+
+API-Centered Backend Architecture
+
+All major platform functionality will be exposed through APIs to allow future mobile applications or third-party integrations.
+
+Scalable Infrastructure Design
+
+The system architecture is designed to support future scaling using containerization and cloud deployment environments.
+
+DEVELOPMENT PHASE STRUCTURE
+
+The development of PayFusion is organized into structured phases to ensure stable system architecture and maintainable code.
+
+Each phase introduces a specific architectural layer of the platform.
+
+PHASE 0 — DEVELOPMENT ENVIRONMENT AND DATABASE SETUP
+
+Objective:
+
+Establish a stable development environment and configure the core database infrastructure required for the application.
+
+Key tasks included:
+
+• Installing PostgreSQL database server
+• Configuring PostgreSQL system environment variables
+• Creating the PayFusion application database
+• Creating a dedicated database user for the application
+• Granting required database permissions
+• Connecting Django to PostgreSQL
+• Verifying database connectivity and configuration
+
+Outcome:
+
+The development environment and database layer were successfully configured, enabling the Django application to communicate securely with PostgreSQL.
+
+Status: Complete
+
+PHASE 1 — PROJECT FOUNDATION AND APPLICATION STRUCTURE
+
+Objective:
+
+Create the base Django project architecture and establish the modular application structure required for long-term scalability.
+
+Key tasks included:
+
+• Creating the main Django project
+• Configuring project settings
+• Creating foundational applications
+• Establishing modular architecture
+• Preparing application structure for authentication and multi-tenancy
+
+Core applications created:
+
+Core Application
+
+Handles shared platform logic and global utilities.
+
+Users Application
+
+Responsible for authentication and user management.
+
+Tenants Application
+
+Responsible for managing businesses operating on the platform.
+
+Outcome:
+
+A scalable and modular Django project structure was established to support future development phases.
+
+Status: Complete
+
+PHASE 2 — CUSTOM AUTHENTICATION SYSTEM
+
+Objective:
+
+Replace Django’s default user authentication system with a fully controlled custom user model to enable future extensibility.
+
+Key tasks included:
+
+• Creating a dedicated authentication application
+• Implementing a custom user model using AbstractUser
+• Configuring Django to use the custom user model
+• Resolving migration conflicts during initial setup
+• Configuring PostgreSQL schema permissions
+• Running database migrations successfully
+• Creating a superuser for administrative access
+• Registering the custom user model in the Django admin panel
+• Verifying database table integrity
+
+Outcome:
+
+The PayFusion platform now operates with a custom authentication system that allows full control over user structure and future feature expansion.
+
+Status: Complete
+
+NEXT DEVELOPMENT PHASE
+
+PHASE 3 — TENANT ARCHITECTURE (BUSINESSES)
+
+Objective:
+
+Implement the multi-tenant business system that allows companies to register and operate on the platform.
+
+Major components will include:
+
+• Business (Tenant) model
+• Merchant ownership structure
+• Business profile management
+• Merchant-to-user relationships
+• Tenant data isolation design
+
+This phase will establish the core infrastructure that enables multiple independent businesses to operate on the PayFusion platform.
+
+CURRENT PROJECT STATUS
+
+Environment Setup: Complete
+Project Architecture: Complete
+Authentication System: Complete

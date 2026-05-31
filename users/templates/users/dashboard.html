@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ request.user.username }} - Dashboard Payfusion{% endblock %}
+
+{% block content %}
+    <h1>Vendor Dashboard</h1>
+
+    {% for data in dashboard_data %}
+        <div style="border:1px solid #ccc; padding:15px; margin-bottom:20px;">
+            
+            <h2>{{ data.business.name }}</h2>
+
+            <p><strong>Wallet Balance:</strong> ₦{{ data.wallet_balance }}</p>
+            <p><strong>Total Revenue:</strong> ₦{{ data.total_revenue }}</p>
+            <p><strong>Total Orders:</strong> {{ data.total_orders }}</p>
+            <p><strong>Pending Orders:</strong> {{ data.pending_orders }}</p>
+
+            <h3>Recent Orders</h3>
+            <ul>
+                {% for order in data.recent_orders %}
+                    <li>
+                        {{ order.reference }} -
+                        ₦{{ order.total_amount }} -
+                        {{ order.status }}
+                    </li>
+                {% empty %}
+                    <li>No orders yet</li>
+                {% endfor %}
+            </ul>
+
+            <h3>Withdraw</h3>
+            <form method="post" action="{% url 'orders:request_withdrawal' %}">
+                {% csrf_token %}
+                <input type="hidden" name="business_id" value="{{ data.business.id }}">
+                <input type="number" step="0.01" name="amount" placeholder="Amount" required>
+                <button type="submit">Withdraw</button>
+            </form>
+
+        </div>
+    {% empty %}
+        <p>No businesses found.</p>
+    {% endfor %}
+{% endblock %}

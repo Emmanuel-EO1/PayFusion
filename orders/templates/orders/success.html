@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+<div class="container mt-5 text-center">
+    <h2>Payment Successful 🎉</h2>
+    <p>Transaction Ref: {{ txn.reference }}</p>
+    <p>Total Paid: ₦{{ txn.amount }}</p>
+
+    <a href="{% url 'products:product_list' %}" class="btn btn-primary mt-3">
+        Continue Shopping
+    </a>
+    <a>
+        <a href="{% url 'core:home' %}" class="btn btn-secondary mt-3">
+            Home
+    </a>
+</div>
+
+{% endblock %}
