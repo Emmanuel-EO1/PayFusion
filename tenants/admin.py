@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Business, Wallet
+from .models import Business, Wallet, BankAccount
 
 
 # ============================================================
@@ -45,9 +45,6 @@ class BusinessAdmin(admin.ModelAdmin):
 
 # ============================================================
 # WALLET ADMIN
-# View-only access to all vendor wallet balances.
-# Admins can monitor balances but cannot edit them directly.
-# All balance changes must go through the transaction system.
 # ============================================================
 @admin.register(Wallet)
 class WalletAdmin(admin.ModelAdmin):
@@ -87,4 +84,103 @@ class WalletAdmin(admin.ModelAdmin):
             '<span style="color:{};font-weight:600;">₦{}</span>',
             colour,
             f'{obj.balance:,.2f}',
+        )
+
+
+# ============================================================
+# BANK ACCOUNT ADMIN
+# Admins can view all vendor bank accounts and their
+# verification status. Sensitive fields are read-only.
+# Account numbers are masked — only last 4 digits shown
+# in the list view to follow basic data protection principles.
+# ============================================================
+@admin.register(BankAccount)
+class BankAccountAdmin(admin.ModelAdmin):
+
+    list_display = (
+        'business',
+        'account_name',
+        'masked_account_number',
+        'bank_name',
+        'is_verified_badge',
+        'is_primary',
+        'is_active',
+        'created_at',
+    )
+
+    list_filter = (
+        'is_verified',
+        'is_primary',
+        'is_active',
+        'bank_name',
+    )
+
+    search_fields = (
+        'business__name',
+        'account_name',
+        'account_number',
+        'bank_name',
+        'recipient_code',
+    )
+
+    readonly_fields = (
+        'business',
+        'account_name',
+        'account_number',
+        'bank_name',
+        'bank_code',
+        'recipient_code',
+        'is_verified',
+        'created_at',
+        'updated_at',
+    )
+
+    fields = (
+        'business',
+        'account_name',
+        'account_number',
+        'bank_name',
+        'bank_code',
+        'recipient_code',
+        'is_verified',
+        'is_primary',
+        'is_active',
+        'created_at',
+        'updated_at',
+    )
+
+    ordering = ('-created_at',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Account Number')
+    def masked_account_number(self, obj):
+        return f'****{obj.account_number[-4:]}'
+
+    @admin.display(description='Verified')
+    def is_verified_badge(self, obj):
+        if obj.is_verified:
+            return format_html(
+                '<span style="'
+                'background:#10b981;'
+                'color:white;'
+                'padding:2px 10px;'
+                'border-radius:12px;'
+                'font-size:11px;'
+                'font-weight:600;'
+                '">VERIFIED</span>'
+            )
+        return format_html(
+            '<span style="'
+            'background:#f59e0b;'
+            'color:white;'
+            'padding:2px 10px;'
+            'border-radius:12px;'
+            'font-size:11px;'
+            'font-weight:600;'
+            '">PENDING</span>'
         )
