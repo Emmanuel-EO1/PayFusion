@@ -2,6 +2,8 @@ import logging
 
 from decimal import Decimal, InvalidOperation
 
+from core.models import PlatformConfig
+
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import HttpResponseBadRequest
@@ -393,7 +395,7 @@ def withdrawal_page(request):
 # REQUEST WITHDRAWAL
 # Handles a vendor's withdrawal request.
 #
-# Current flow:
+# Current flow (Phase 7):
 #   1. Validate ownership and amount
 #   2. Check sufficient balance
 #   3. Debit wallet immediately as a hold
@@ -441,13 +443,15 @@ def request_withdrawal(request):
         })
 
     # Minimum withdrawal amount — prevents micro-withdrawal spam
-    MINIMUM_WITHDRAWAL = Decimal('500.00')
-    if amount_to_withdraw < MINIMUM_WITHDRAWAL:
+    config = PlatformConfig.get_config()
+    minimum_withdrawal = config.minimum_withdrawal_amount
+
+    if amount_to_withdraw < minimum_withdrawal:
         return render(request, 'orders/withdrawal.html', {
             'businesses': Business.objects.filter(
                 owner=request.user
             ).select_related('wallet'),
-            'error': f'Minimum withdrawal amount is ₦{MINIMUM_WITHDRAWAL}.',
+            'error': f'Minimum withdrawal amount is ₦{minimum_withdrawal:,.2f}.',
         })
 
     try:
