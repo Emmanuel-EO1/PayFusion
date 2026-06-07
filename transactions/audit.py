@@ -8,6 +8,11 @@ from core.models import PlatformConfig
 from tenants.models import Wallet, WithdrawalRequest
 from transactions.models import Transaction
 from disputes.models import Dispute
+from core.email_service import (
+    send_withdrawal_blocked,
+    send_withdrawal_received,
+    send_withdrawal_under_review,
+)
 
 logger = logging.getLogger('payfusion')
 
@@ -232,6 +237,9 @@ def run_withdrawal_audit(withdrawal_request):
                 f'amount: N{amount:,.2f} | reason: {failure_reason}'
             )
 
+            # Notify vendor their withdrawal was blocked
+            send_withdrawal_blocked(business, wr)
+
         else:
             now = timezone.now()
             hold_expires = wr.hold_expires_at
@@ -254,5 +262,11 @@ def run_withdrawal_audit(withdrawal_request):
                 f'status: {wr.status} | '
                 f'admin_review: {wr.requires_admin_review}'
             )
+
+            # Notify vendor based on outcome
+            if wr.status == 'pending_hold':
+                send_withdrawal_received(business, wr)
+            elif wr.status == 'pending_approval':
+                send_withdrawal_under_review(business, wr)
 
     return result

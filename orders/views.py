@@ -23,6 +23,10 @@ from transactions.service.paystack import (
 )
 from transactions.services import debit_wallet
 from transactions.views import _get_treasury
+from core.email_service import (
+    send_payment_confirmation,
+    send_transfer_initiated,
+)
 
 logger = logging.getLogger('payfusion')
 
@@ -200,6 +204,9 @@ def payment_callback(request):
 
     if txn.status == 'paid':
         orders = txn.orders.select_related('business').all()
+        # Send confirmation email if not already sent
+        # safe to call — _send() never raises exceptions
+        send_payment_confirmation(txn.user, txn, orders)
         return render(request, 'orders/payment_success.html', {
             'txn': txn,
             'orders': orders,
@@ -748,6 +755,9 @@ def _initiate_withdrawal_transfer(withdrawal_request, withdrawal_txn):
             f'amount: ₦{withdrawal_request.amount:,.2f} | '
             f'transfer_code: {transfer_code}'
         )
+
+        # Notify vendor transfer is on its way
+        send_transfer_initiated(withdrawal_request.business, withdrawal_request)
 
     else:
         # Transfer initiation failed — mark as failed, reverse wallet

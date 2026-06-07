@@ -13,10 +13,14 @@ from django.db import transaction
 from django.contrib.auth import get_user_model
 
 from core.models import PlatformConfig
+from core.email_service import (
+    send_transfer_initiated,
+    send_transfer_completed,
+    send_transfer_failed,
+)
 from transactions.models import Transaction, WebhookEvent
 from transactions.services import credit_wallet, debit_wallet
-from tenants.models import Business
-from tenants.models import WithdrawalRequest
+from tenants.models import Business, WithdrawalRequest
 from orders.models import Order
 
 logger = logging.getLogger('payfusion')
@@ -265,6 +269,7 @@ def _handle_transfer_success(event_data, webhook_event):
             wr.completed_at = timezone.now()
             wr.save(update_fields=['status', 'completed_at', 'updated_at'])
             logger.info(f'WithdrawalRequest #{wr.id} marked completed — reference: {reference}')
+            send_transfer_completed(wr.business, wr)
         except WithdrawalRequest.DoesNotExist:
             logger.info(f'No WithdrawalRequest found for transfer — reference: {reference}')
 
@@ -322,6 +327,7 @@ def _handle_transfer_failed(event_data, webhook_event):
             wr.rejection_reason = 'Bank transfer failed. Funds have been returned to your wallet.'
             wr.save(update_fields=['status', 'completed_at', 'rejection_reason', 'updated_at'])
             logger.info(f'WithdrawalRequest #{wr.id} marked failed — reference: {reference}')
+            send_transfer_failed(wr.business, wr)
         except WithdrawalRequest.DoesNotExist:
             logger.info(f'No WithdrawalRequest found for failed transfer — reference: {reference}')
 
