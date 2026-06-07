@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Transaction History — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">My Purchases</h2>
+
+    {% if not transactions %}
+        <p class="text-muted">You have not made any purchases yet.</p>
+        <a href="{% url 'products:product_list' %}" class="btn btn-primary">
+            Start Shopping
+        </a>
+    {% else %}
+        {% for txn in transactions %}
+        <div class="card mb-4" style="border:1px solid #ddd;">
+            <div class="card-body p-4">
+
+                {# --- Master Transaction Header --- #}
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5 class="mb-1">Reference: {{ txn.reference }}</h5>
+                        <p class="text-muted small mb-0">
+                            {{ txn.created_at|date:"F j, Y — g:i A" }}
+                        </p>
+                    </div>
+                    <div class="text-end">
+                        <h5 class="mb-1">₦{{ txn.amount|floatformat:2 }}</h5>
+                        {% if txn.status == 'paid' %}
+                            <span class="badge bg-success">Paid</span>
+                        {% elif txn.status == 'pending' %}
+                            <span class="badge bg-warning text-dark">Pending</span>
+                        {% elif txn.status == 'failed' %}
+                            <span class="badge bg-danger">Failed</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ txn.status }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {# --- Vendor Orders --- #}
+                {% if txn.orders.all %}
+                <hr>
+                <h6 class="text-muted">Order Breakdown</h6>
+                {% for order in txn.orders.all %}
+                <div class="mb-3 ps-3 border-start border-2">
+                    <p class="mb-1">
+                        <strong>{{ order.business.name }}</strong>
+                        <span class="text-muted small ms-2">
+                            ₦{{ order.total_amount|floatformat:2 }}
+                        </span>
+                        {% if order.status == 'paid' %}
+                            <span class="badge bg-success ms-2">Paid</span>
+                        {% elif order.status == 'pending' %}
+                            <span class="badge bg-warning text-dark ms-2">Pending</span>
+                        {% else %}
+                            <span class="badge bg-secondary ms-2">{{ order.status }}</span>
+                        {% endif %}
+                    </p>
+                    {# Items in this order #}
+                    <ul class="list-unstyled mb-0 ms-2">
+                        {% for item in order.items.all %}
+                        <li class="text-muted small">
+                            {{ item.product.name }}
+                            × {{ item.quantity }}
+                            — ₦{{ item.price|floatformat:2 }} each
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endfor %}
+                {% endif %}
+
+                {# --- Receipt Link --- #}
+                {% if txn.status == 'paid' %}
+                <div class="mt-2">
+                    <a href="{% url 'orders:payment_success' txn.reference %}"
+                       class="btn btn-sm btn-outline-primary">
+                        View Receipt
+                    </a>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="mt-3">
+        <a href="{% url 'users:dashboard' %}" class="btn btn-outline-secondary">
+            Back to Dashboard
+        </a>
+    </div>
+
+</div>
+{% endblock %}

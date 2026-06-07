@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Payout History — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">Payout History</h2>
+
+    {% if not withdrawals %}
+        <p class="text-muted">No withdrawal requests yet.</p>
+        <a href="{% url 'orders:withdrawal_page' %}" class="btn btn-primary">
+            Request Withdrawal
+        </a>
+    {% else %}
+        <table class="table table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th>Reference</th>
+                    <th>Business</th>
+                    <th>Amount</th>
+                    <th>Bank Account</th>
+                    <th>Status</th>
+                    <th>Requested</th>
+                    <th>Completed</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for withdrawal in withdrawals %}
+                <tr>
+                    <td>
+                        {% if withdrawal.transaction %}
+                            {{ withdrawal.transaction.reference }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td>{{ withdrawal.business.name }}</td>
+                    <td>₦{{ withdrawal.amount|floatformat:2 }}</td>
+                    <td>
+                        {% if withdrawal.bank_account %}
+                            {{ withdrawal.bank_account.bank_name }}
+                            ****{{ withdrawal.bank_account.account_number|slice:"-4:" }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if withdrawal.status == 'completed' %}
+                            <span class="badge bg-success">Completed</span>
+                        {% elif withdrawal.status == 'processing' %}
+                            <span class="badge bg-primary">Processing</span>
+                        {% elif withdrawal.status == 'pending_hold' %}
+                            <span class="badge bg-warning text-dark">On Hold</span>
+                        {% elif withdrawal.status == 'pending_approval' %}
+                            <span class="badge bg-warning text-dark">Under Review</span>
+                        {% elif withdrawal.status == 'approved' %}
+                            <span class="badge bg-info text-dark">Approved</span>
+                        {% elif withdrawal.status == 'failed' %}
+                            <span class="badge bg-danger">Failed</span>
+                            {% if withdrawal.rejection_reason %}
+                                <br>
+                                <small class="text-muted">
+                                    {{ withdrawal.rejection_reason }}
+                                </small>
+                            {% endif %}
+                        {% elif withdrawal.status == 'audit_failed' %}
+                            <span class="badge bg-danger">Blocked</span>
+                            {% if withdrawal.rejection_reason %}
+                                <br>
+                                <small class="text-muted">
+                                    {{ withdrawal.rejection_reason }}
+                                </small>
+                            {% endif %}
+                        {% elif withdrawal.status == 'rejected' %}
+                            <span class="badge bg-secondary">Rejected</span>
+                            {% if withdrawal.rejection_reason %}
+                                <br>
+                                <small class="text-muted">
+                                    {{ withdrawal.rejection_reason }}
+                                </small>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge bg-secondary">
+                                {{ withdrawal.get_status_display }}
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td>{{ withdrawal.created_at|date:"M j, Y" }}</td>
+                    <td>
+                        {% if withdrawal.completed_at %}
+                            {{ withdrawal.completed_at|date:"M j, Y" }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <div class="mt-3">
+        <a href="{% url 'orders:withdrawal_page' %}" class="btn btn-primary me-2">
+            Request Withdrawal
+        </a>
+        <a href="{% url 'users:dashboard' %}" class="btn btn-outline-secondary">
+            Back to Dashboard
+        </a>
+    </div>
+
+</div>
+{% endblock %}
