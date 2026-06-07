@@ -16,6 +16,7 @@ from core.models import PlatformConfig
 from transactions.models import Transaction, WebhookEvent
 from transactions.services import credit_wallet, debit_wallet
 from tenants.models import Business
+from tenants.models import WithdrawalRequest
 from orders.models import Order
 
 logger = logging.getLogger('payfusion')
@@ -257,6 +258,16 @@ def _handle_transfer_success(event_data, webhook_event):
             description=f'Treasury finalised payout for withdrawal {txn.reference}'
         )
 
+        # Update WithdrawalRequest to completed
+        try:
+            wr = WithdrawalRequest.objects.get(transaction=txn)
+            wr.status = 'completed'
+            wr.completed_at = timezone.now()
+            wr.save(update_fields=['status', 'completed_at', 'updated_at'])
+            logger.info(f'WithdrawalRequest #{wr.id} marked completed — reference: {reference}')
+        except WithdrawalRequest.DoesNotExist:
+            logger.info(f'No WithdrawalRequest found for transfer — reference: {reference}')
+
     webhook_event.status = 'processed'
     webhook_event.processed_at = timezone.now()
     webhook_event.save(update_fields=['status', 'processed_at'])
@@ -302,6 +313,17 @@ def _handle_transfer_failed(event_data, webhook_event):
             user=txn.user,
             description=f'Reversal: Failed transfer returned to wallet — {txn.reference}'
         )
+
+        # Update WithdrawalRequest to failed
+        try:
+            wr = WithdrawalRequest.objects.get(transaction=txn)
+            wr.status = 'failed'
+            wr.completed_at = timezone.now()
+            wr.rejection_reason = 'Bank transfer failed. Funds have been returned to your wallet.'
+            wr.save(update_fields=['status', 'completed_at', 'rejection_reason', 'updated_at'])
+            logger.info(f'WithdrawalRequest #{wr.id} marked failed — reference: {reference}')
+        except WithdrawalRequest.DoesNotExist:
+            logger.info(f'No WithdrawalRequest found for failed transfer — reference: {reference}')
 
     webhook_event.status = 'processed'
     webhook_event.processed_at = timezone.now()

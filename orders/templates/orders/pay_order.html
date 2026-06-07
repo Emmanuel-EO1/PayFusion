@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+<div class="container mt-5">
+    <h2>Pay Order</h2>
+    <p>Order Ref: {{ order.reference }}</p>
+    <p>Total: {{ order.total_amount }}</p>
+
+    <button class="btn btn-success">Proceed Payment</button>
+</div>
+
+{% endblock %}

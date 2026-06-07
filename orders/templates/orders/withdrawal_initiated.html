@@ -1,15 +1,102 @@
 {% extends 'base.html' %}
 {% load static %}
 
+{% block title %}Withdrawal — PayFusion{% endblock %}
+
 {% block content %}
+<div class="container mt-5" style="max-width:600px;">
 
-<div class="container mt-5 text-center">
-    <h2>Withdrawal Initiated</h2>
-    <p>Your request for ₦{{ txn.amount }} is being processed.</p>
-    <p>Reference: {{ txn.reference }}</p>
-    <p>Status: <strong>{{ txn.status }}</strong></p>
-    <a href="{% url 'users:dashboard' %}">Back to Dashboard</a>
+    {# ── PROCESSING — transfer fired to Paystack ── #}
+    {% if withdrawal_request.status == 'processing' %}
+        <div class="text-center">
+            <h2>Your Withdrawal Is On Its Way</h2>
+            <p class="text-muted">
+                ₦{{ withdrawal_request.amount|floatformat:2 }} is being transferred to
+                <strong>
+                    {{ withdrawal_request.bank_account.bank_name }}
+                    ****{{ withdrawal_request.bank_account.account_number|slice:"-4:" }}
+                </strong>
+            </p>
+            <p class="text-muted">
+                Bank transfers typically take a few minutes to a few hours.
+                You will be notified once it lands.
+            </p>
+            <p>Reference: <strong>{{ txn.reference }}</strong></p>
+        </div>
+
+    {# ── PENDING HOLD — hold period active ── #}
+    {% elif withdrawal_request.status == 'pending_hold' %}
+        <div class="text-center">
+            <h2>Withdrawal Received</h2>
+            <p class="text-muted">
+                Your withdrawal of
+                <strong>₦{{ withdrawal_request.amount|floatformat:2 }}</strong>
+                has been received and is under our security hold period.
+            </p>
+            <div class="alert alert-info">
+                Funds will be automatically transferred on
+                <strong>{{ withdrawal_request.hold_expires_at|date:"l, F j, Y" }}</strong>
+                to
+                <strong>
+                    {{ withdrawal_request.bank_account.bank_name }}
+                    ****{{ withdrawal_request.bank_account.account_number|slice:"-4:" }}
+                </strong>
+            </div>
+            <p class="text-muted small">
+                You do not need to do anything.
+                The transfer will happen automatically once the hold period ends.
+            </p>
+            <p>Reference: <strong>{{ txn.reference }}</strong></p>
+        </div>
+
+    {# ── PENDING APPROVAL — flagged for admin review ── #}
+    {% elif withdrawal_request.status == 'pending_approval' %}
+        <div class="text-center">
+            <h2>Withdrawal Under Review</h2>
+            <p class="text-muted">
+                Your withdrawal request is currently being reviewed by our team.
+                This typically takes up to 24 hours.
+            </p>
+            <div class="alert alert-warning">
+                You will be notified by email once the review is complete.
+            </div>
+            <p>Reference: <strong>{{ txn.reference }}</strong></p>
+        </div>
+
+    {# ── APPROVED — passed all gates ── #}
+    {% elif withdrawal_request.status == 'approved' %}
+        <div class="text-center">
+            <h2>Withdrawal Approved</h2>
+            <p class="text-muted">
+                Your withdrawal of
+                <strong>₦{{ withdrawal_request.amount|floatformat:2 }}</strong>
+                has been approved and will be processed shortly.
+            </p>
+            <p>Reference: <strong>{{ txn.reference }}</strong></p>
+        </div>
+
+    {# ── FALLBACK ── #}
+    {% else %}
+        <div class="text-center">
+            <h2>Withdrawal Request Submitted</h2>
+            <p class="text-muted">
+                Your request for
+                <strong>₦{{ txn.amount|floatformat:2 }}</strong>
+                is being processed.
+            </p>
+            <p>Reference: <strong>{{ txn.reference }}</strong></p>
+            <p>Status: <strong>{{ withdrawal_request.get_status_display }}</strong></p>
+        </div>
+    {% endif %}
+
+    <div class="text-center mt-4">
+        <a href="{% url 'users:dashboard' %}" class="btn btn-outline-secondary me-2">
+            Back to Dashboard
+        </a>
+        <a href="{% url 'orders:withdrawal_page' %}" class="btn btn-outline-primary">
+            Withdrawal History
+        </a>
+    </div>
+
 </div>
-
 {% endblock %}
-

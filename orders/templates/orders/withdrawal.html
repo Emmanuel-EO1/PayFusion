@@ -1,29 +1,138 @@
-{%extends 'base.html'%}
+{% extends 'base.html' %}
 {% load static %}
 
+{% block title %}Withdraw Funds — PayFusion{% endblock %}
+
 {% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">Withdraw Funds</h2>
 
-<h2>Withdraw Funds</h2>
+    {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
 
-    {% if businesses %}
+    {% if not businesses %}
+        <p>You do not own any businesses.</p>
+    {% else %}
         {% for business in businesses %}
-            <div class="card mb-3">
-                <div class="card-body"  style="border:1px solid #ddd; padding:15px; margin-bottom:15px;">
-                    <h3 class="card-title">{{ business.name }}</h3>
-                    <p class="card-text">Current Balance: ₦{{ business.wallet.balance }}</p>
+        <div class="card mb-4" style="border:1px solid #ddd;">
+            <div class="card-body p-4">
+
+                <h3 class="card-title">{{ business.name }}</h3>
+                <p class="card-text">
+                    Available Balance:
+                    <strong>₦{{ business.wallet.balance|floatformat:2 }}</strong>
+                </p>
+
+                {# --- Bank Accounts Section --- #}
+                <hr>
+                <h5>Bank Accounts</h5>
+
+                {% with accounts=business.bank_accounts.all %}
+                    {% if accounts %}
+                        <table class="table table-sm mb-3">
+                            <thead>
+                                <tr>
+                                    <th>Account Name</th>
+                                    <th>Bank</th>
+                                    <th>Number</th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for account in accounts %}
+                                    {% if account.is_active %}
+                                    <tr>
+                                        <td>{{ account.account_name }}</td>
+                                        <td>{{ account.bank_name }}</td>
+                                        <td>****{{ account.account_number|slice:"-4:" }}</td>
+                                        <td>
+                                            {% if account.is_primary %}
+                                                <span class="badge bg-success">Primary</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Secondary</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <form method="post"
+                                                  action="{% url 'orders:remove_bank_account' account.id %}"
+                                                  style="display:inline;">
+                                                {% csrf_token %}
+                                                <button type="submit"
+                                                        class="btn btn-sm btn-outline-danger"
+                                                        onclick="return confirm('Remove this bank account?')">
+                                                    Remove
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p class="text-muted">No bank accounts added yet.</p>
+                    {% endif %}
+                {% endwith %}
+
+                <a href="{% url 'orders:add_bank_account' %}?business_id={{ business.id }}"
+                   class="btn btn-sm btn-outline-primary mb-3">
+                    + Add Bank Account
+                </a>
+
+                {# --- Withdrawal Form --- #}
+                <hr>
+                <h5>Request Withdrawal</h5>
+
+                {% if business.primary_account %}
+                    <p class="text-muted small">
+                        Funds will be sent to:
+                        <strong>
+                            {{ business.primary_account.bank_name }}
+                            ****{{ business.primary_account.account_number|slice:"-4:" }}
+                        </strong>
+                        ({{ business.primary_account.account_name }})
+                    </p>
+                    <p class="text-muted small">
+                        Minimum withdrawal: ₦{{ minimum_withdrawal|floatformat:2 }}
+                        &nbsp;|&nbsp;
+                        Hold period: {{ hold_days }} days
+                    </p>
                     <form method="post" action="{% url 'orders:request_withdrawal' %}">
                         {% csrf_token %}
                         <input type="hidden" name="business_id" value="{{ business.id }}">
                         <div class="mb-3">
-                            <label for="amount_{{ business.id }}" class="form-label">Amount to Withdraw</label>
-                            <input type="number" name="amount" step="0.01" min="0.01" max="{{ business.wallet.balance }}" class="form-control" id="amount_{{ business.id }}" required>
+                            <label for="amount_{{ business.id }}" class="form-label">
+                                Amount to Withdraw (₦)
+                            </label>
+                            <input
+                                type="number"
+                                name="amount"
+                                step="0.01"
+                                min="{{ minimum_withdrawal }}"
+                                max="{{ business.wallet.balance }}"
+                                class="form-control"
+                                id="amount_{{ business.id }}"
+                                required
+                            >
                         </div>
-                        <button type="submit" class="btn btn-primary">Request Withdrawal</button>
+                        <button type="submit" class="btn btn-primary">
+                            Request Withdrawal
+                        </button>
                     </form>
-                </div>
+                {% else %}
+                    <div class="alert alert-warning">
+                        You need a verified primary bank account to withdraw funds.
+                        <a href="{% url 'orders:add_bank_account' %}?business_id={{ business.id }}">
+                            Add one now
+                        </a>
+                    </div>
+                {% endif %}
+
             </div>
+        </div>
         {% endfor %}
-    {% else %}
-            <p>You do not own any businesses.</p>
     {% endif %}
+</div>
 {% endblock %}

@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Withdrawal Blocked — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width:600px;">
+    <div class="text-center">
+
+        <h2 class="text-danger">Withdrawal Blocked</h2>
+
+        <p class="text-muted mt-3">
+            Your withdrawal request could not be processed.
+            Your funds have been returned to your wallet.
+        </p>
+
+        {% if withdrawal_request %}
+        <div class="alert alert-danger text-start mt-4">
+            <strong>Reason:</strong>
+            <p class="mb-0 mt-2">{{ withdrawal_request.rejection_reason }}</p>
+        </div>
+
+        <p class="text-muted small">
+            Amount returned to wallet:
+            <strong>₦{{ withdrawal_request.amount|floatformat:2 }}</strong>
+        </p>
+        {% endif %}
+
+        <hr>
+
+        <p class="text-muted small">
+            Once you have resolved the issue above, you can request a new withdrawal.
+        </p>
+
+        <div class="mt-4">
+            <a href="{% url 'orders:withdrawal_page' %}" class="btn btn-primary me-2">
+                Try Again
+            </a>
+            <a href="{% url 'users:dashboard' %}" class="btn btn-outline-secondary">
+                Back to Dashboard
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

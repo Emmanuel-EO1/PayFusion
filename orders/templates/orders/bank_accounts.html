@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Bank Accounts — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">Bank Accounts</h2>
+
+    {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+
+    {% if not businesses %}
+        <p>You do not own any businesses.</p>
+    {% else %}
+        {% for business in businesses %}
+        <div class="card mb-4" style="border:1px solid #ddd;">
+            <div class="card-body p-4">
+                <h4>{{ business.name }}</h4>
+
+                {% with accounts=business.bank_accounts.all %}
+                    {% if accounts %}
+                        <table class="table table-bordered mt-3">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Account Name</th>
+                                    <th>Bank</th>
+                                    <th>Account Number</th>
+                                    <th>Status</th>
+                                    <th>Verified</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for account in accounts %}
+                                    {% if account.is_active %}
+                                    <tr>
+                                        <td>{{ account.account_name }}</td>
+                                        <td>{{ account.bank_name }}</td>
+                                        <td>****{{ account.account_number|slice:"-4:" }}</td>
+                                        <td>
+                                            {% if account.is_primary %}
+                                                <span class="badge bg-success">Primary</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Secondary</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if account.is_verified %}
+                                                <span class="badge bg-success">Verified</span>
+                                            {% else %}
+                                                <span class="badge bg-warning text-dark">Pending</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <form method="post"
+                                                  action="{% url 'orders:remove_bank_account' account.id %}"
+                                                  style="display:inline;">
+                                                {% csrf_token %}
+                                                <button type="submit"
+                                                        class="btn btn-sm btn-outline-danger"
+                                                        onclick="return confirm('Remove this bank account? This cannot be undone.')">
+                                                    Remove
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p class="text-muted mt-3">No bank accounts added yet.</p>
+                    {% endif %}
+                {% endwith %}
+
+                <a href="{% url 'orders:add_bank_account' %}?business_id={{ business.id }}"
+                   class="btn btn-primary mt-2">
+                    + Add Bank Account
+                </a>
+
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="mt-3">
+        <a href="{% url 'orders:withdrawal_page' %}" class="btn btn-outline-secondary">
+            Back to Withdrawals
+        </a>
+    </div>
+
+</div>
+{% endblock %}

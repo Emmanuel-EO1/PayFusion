@@ -1,11 +1,9 @@
 {% extends 'base.html' %}
+{% load static %}
 
-{% block title %}
-Payment Failed - PayFusion
-{% endblock %}
+{% block title %}Payment Failed — PayFusion{% endblock %}
 
 {% block content %}
-
 <div style="max-width:600px; margin:auto; padding:40px; text-align:center;">
 
     <h1>Payment Failed</h1>
@@ -16,12 +14,12 @@ Payment Failed - PayFusion
         <p>Your payment could not be completed.</p>
     {% endif %}
 
+    {# --- Payment transaction context --- #}
     {% if txn %}
         <p>
             Transaction Reference:
             <strong>{{ txn.reference }}</strong>
         </p>
-
         <p>
             Status:
             <strong>{{ txn.status }}</strong>
@@ -29,22 +27,52 @@ Payment Failed - PayFusion
 
         <br>
 
-        <a href="{% url 'orders:payment_summary' txn.id %}">
-            <button>
-                Try Again
-            </button>
-        </a>
+        {% if show_retry %}
+            <a href="{% url 'orders:initialize_paystack_payment' txn.id %}">
+                <button class="btn btn-primary">Try Again</button>
+            </a>
+        {% else %}
+            <a href="{% url 'orders:payment_summary' txn.id %}">
+                <button class="btn btn-primary">View Order Summary</button>
+            </a>
+        {% endif %}
 
-    {% else %}
+        <br><br>
 
         <a href="{% url 'products:product_list' %}">
-            <button>
-                Return to Shop
-            </button>
+            <button class="btn btn-outline-secondary">Return to Shop</button>
         </a>
 
+    {# --- Withdrawal context --- #}
+    {% elif withdrawal_request %}
+        <p>
+            Withdrawal Reference:
+            <strong>{{ withdrawal_request.transaction.reference }}</strong>
+        </p>
+        <p>
+            Amount:
+            <strong>₦{{ withdrawal_request.amount|floatformat:2 }}</strong>
+        </p>
+        {% if withdrawal_request.rejection_reason %}
+            <div class="alert alert-danger text-start mt-3">
+                <strong>Reason:</strong> {{ withdrawal_request.rejection_reason }}
+            </div>
+        {% endif %}
+
+        <p class="text-muted small mt-3">
+            Your funds have been returned to your wallet.
+        </p>
+
+        <a href="{% url 'orders:withdrawal_page' %}">
+            <button class="btn btn-primary">Back to Withdrawals</button>
+        </a>
+
+    {# --- Generic fallback --- #}
+    {% else %}
+        <a href="{% url 'products:product_list' %}">
+            <button class="btn btn-outline-secondary">Return to Shop</button>
+        </a>
     {% endif %}
 
 </div>
-
 {% endblock %}

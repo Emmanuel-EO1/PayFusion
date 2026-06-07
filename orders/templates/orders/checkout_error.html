@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Checkout Error — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width:600px; text-align:center;">
+
+    <h2>Something Went Wrong</h2>
+
+    <p class="text-muted mt-3">
+        {% if message %}
+            {{ message }}
+        {% else %}
+            We encountered an error during checkout. No charge was made.
+        {% endif %}
+    </p>
+
+    <div class="mt-4">
+        <a href="{% url 'cart:cart_detail' %}" class="btn btn-primary me-2">
+            Return to Cart
+        </a>
+        <a href="{% url 'products:product_list' %}" class="btn btn-outline-secondary">
+            Continue Shopping
+        </a>
+    </div>
+
+</div>
+{% endblock %}
