@@ -102,6 +102,7 @@ INSTALLED_APPS = [
     'orders.apps.OrdersConfig',
     'cart.apps.CartConfig',
     'disputes.apps.DisputesConfig',
+    'delivery.apps.DeliveryConfig',
 ]
 
 MIDDLEWARE = [

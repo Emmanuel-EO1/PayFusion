@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Order Management — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">Order Management</h2>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} alert-dismissible">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    {% if not business_orders %}
+        <p class="text-muted">No businesses found.</p>
+    {% else %}
+        {% for group in business_orders %}
+        <div class="card mb-5" style="border:1px solid #ddd;">
+            <div class="card-body p-4">
+                <h4 class="mb-3">{{ group.business.name }}</h4>
+
+                {% if not group.orders %}
+                    <p class="text-muted">No paid orders yet.</p>
+                {% else %}
+                    {% for order in group.orders %}
+                    <div class="border rounded p-3 mb-3">
+
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <strong>{{ order.reference }}</strong>
+                                <span class="text-muted small ms-2">
+                                    {{ order.created_at|date:"M j, Y" }}
+                                </span>
+                            </div>
+                            <strong>₦{{ order.total_amount|floatformat:2 }}</strong>
+                        </div>
+
+                        <ul class="list-unstyled small text-muted mb-2">
+                            {% for item in order.items.all %}
+                                <li>{{ item.product.name }} × {{ item.quantity }}</li>
+                            {% endfor %}
+                        </ul>
+
+                        <p class="mb-2">
+                            Customer: <strong>{{ order.user.email }}</strong>
+                        </p>
+
+                        {% if order.delivery %}
+
+                        <p class="mb-3">
+                            Delivery Status:
+                            {% with s=order.delivery.status %}
+                                {% if s == 'pending' %}
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                {% elif s == 'processing' %}
+                                    <span class="badge bg-primary">Processing</span>
+                                {% elif s == 'shipped' %}
+                                    <span class="badge" style="background:#8b5cf6;color:white;">Shipped</span>
+                                {% elif s == 'in_transit' %}
+                                    <span class="badge bg-info text-dark">In Transit</span>
+                                {% elif s == 'delivered' %}
+                                    <span class="badge bg-success">Delivered</span>
+                                {% elif s == 'cancelled' %}
+                                    <span class="badge bg-danger">Cancelled</span>
+                                {% elif s == 'returned' %}
+                                    <span class="badge bg-secondary">Returned</span>
+                                {% endif %}
+                            {% endwith %}
+                        </p>
+
+                        {# PENDING — vendor accepts order #}
+                        {% if order.delivery.status == 'pending' %}
+                            <form method="post"
+                                  action="{% url 'delivery:accept_order' order.id %}"
+                                  style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-success">
+                                    Accept Order
+                                </button>
+                            </form>
+
+                        {# PROCESSING — vendor ships order #}
+                        {% elif order.delivery.status == 'processing' %}
+                            <form method="post"
+                                  action="{% url 'delivery:ship_order' order.id %}"
+                                  class="row g-2 align-items-end mt-1">
+                                {% csrf_token %}
+                                <div class="col-auto">
+                                    <select name="courier" class="form-select form-select-sm" required
+                                            id="courier_{{ order.id }}"
+                                            onchange="toggleTracking(this, '{{ order.id }}')">
+                                        <option value="">Select courier</option>
+                                        <option value="Hand Delivery">Hand Delivery</option>
+                                        <option value="DHL">DHL</option>
+                                        <option value="GIG Logistics">GIG Logistics</option>
+                                        <option value="FedEx">FedEx</option>
+                                        <option value="GIGL">GIGL</option>
+                                        <option value="Other">Other (type below)</option>
+                                    </select>
+                                </div>
+                                <div class="col-auto" id="tracking_field_{{ order.id }}">
+                                    <input type="text"
+                                           name="tracking_id"
+                                           class="form-control form-control-sm"
+                                           placeholder="Tracking ID">
+                                </div>
+                                <div class="col-auto">
+                                    <input type="date"
+                                           name="estimated_delivery_date"
+                                           class="form-control form-control-sm">
+                                </div>
+                                <div class="col-auto">
+                                    <button type="submit" class="btn btn-sm btn-primary">
+                                        Mark Shipped
+                                    </button>
+                                </div>
+                            </form>
+
+                        {# SHIPPED — vendor marks in transit #}
+                        {% elif order.delivery.status == 'shipped' %}
+                            <form method="post"
+                                  action="{% url 'delivery:update_delivery' order.delivery.id %}"
+                                  style="display:inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="status" value="in_transit">
+                                <input type="hidden" name="note" value="Order is in transit to customer.">
+                                <button type="submit" class="btn btn-sm btn-info text-white">
+                                    Mark In Transit
+                                </button>
+                            </form>
+
+                        {# IN TRANSIT — actions depend on delivery type #}
+                        {% elif order.delivery.status == 'in_transit' %}
+
+                            {% if order.delivery.is_hand_delivery %}
+                                {# Hand delivery — vendor can mark delivered #}
+                                <form method="post"
+                                      action="{% url 'delivery:update_delivery' order.delivery.id %}"
+                                      style="display:inline;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="status" value="delivered">
+                                    <input type="hidden" name="note" value="Delivered by vendor (hand delivery).">
+                                    <button type="submit" class="btn btn-sm btn-success me-2"
+                                            onclick="return confirm('Confirm this order was hand-delivered?')">
+                                        Mark Delivered
+                                    </button>
+                                </form>
+                            {% else %}
+                                {# Courier delivery — only customer can confirm #}
+                                <span class="text-muted small me-3">
+                                    Awaiting customer delivery confirmation
+                                </span>
+                            {% endif %}
+
+                            <form method="post"
+                                  action="{% url 'delivery:update_delivery' order.delivery.id %}"
+                                  style="display:inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="status" value="cancelled">
+                                <input type="hidden" name="note" value="Cancelled by vendor.">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                        onclick="return confirm('Cancel this delivery?')">
+                                    Cancel Delivery
+                                </button>
+                            </form>
+
+                        {# DELIVERED — no further actions #}
+                        {% elif order.delivery.status == 'delivered' %}
+                            <span class="text-success small">
+                                Delivered on
+                                {{ order.delivery.delivered_at|date:"M j, Y" }}
+                            </span>
+
+                        {% endif %}
+
+                        {% if order.delivery.tracking_id %}
+                            <p class="mt-2 small text-muted">
+                                Tracking: <strong>{{ order.delivery.tracking_id }}</strong>
+                                via {{ order.delivery.courier }}
+                            </p>
+                        {% endif %}
+
+                        {% else %}
+                            <p class="text-muted small">No delivery record found.</p>
+                        {% endif %}
+
+                    </div>
+                    {% endfor %}
+                {% endif %}
+
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="mt-3">
+        <a href="{% url 'users:dashboard' %}" class="btn btn-outline-secondary">
+            Back to Dashboard
+        </a>
+    </div>
+
+</div>
+
+<script>
+// Hide tracking ID field when Hand Delivery is selected
+function toggleTracking(select, orderId) {
+    const trackingField = document.getElementById('tracking_field_' + orderId);
+    if (select.value.toLowerCase() === 'hand delivery') {
+        trackingField.style.display = 'none';
+    } else {
+        trackingField.style.display = 'block';
+    }
+}
+</script>
+
+{% endblock %}

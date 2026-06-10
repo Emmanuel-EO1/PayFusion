@@ -11,6 +11,7 @@ urlpatterns = [
     path('products/', include('products.urls', namespace='products')),
     path('cart/', include('cart.urls', namespace='cart')),
     path('orders/', include('orders.urls', namespace='orders')),
+    path('delivery/', include('delivery.urls', namespace='delivery')),
 ]
 
 # Serve media files during development

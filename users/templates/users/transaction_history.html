@@ -76,9 +76,17 @@
                 {% if txn.status == 'paid' %}
                 <div class="mt-2">
                     <a href="{% url 'orders:payment_success' txn.reference %}"
-                       class="btn btn-sm btn-outline-primary">
+                    class="btn btn-sm btn-outline-primary me-2">
                         View Receipt
                     </a>
+                    {% for order in txn.orders.all %}
+                        {% if order.delivery %}
+                            <a href="{% url 'delivery:track_order' order.reference %}"
+                            class="btn btn-sm btn-outline-secondary me-2">
+                                Track — {{ order.business.name }}
+                            </a>
+                        {% endif %}
+                    {% endfor %}
                 </div>
                 {% endif %}
 
