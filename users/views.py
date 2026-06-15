@@ -11,15 +11,12 @@ from transactions.models import Transaction
 logger = logging.getLogger('payfusion')
 
 
-# ============================================================
-# VENDOR DASHBOARD
-# ============================================================
 @login_required
 def dashboard(request):
     """
-    Vendor dashboard — shows wallet balance, revenue,
-    order stats, and recent orders for each business owned.
-    Only accessible to users who own at least one business.
+    Vendor dashboard — shows escrow/available/total wallet
+    breakdown, revenue, order stats, and recent orders for
+    each business owned.
     """
     businesses = (
         Business.objects
@@ -53,9 +50,13 @@ def dashboard(request):
 
         pending_orders = orders.filter(status='pending').count()
 
+        wallet = business.wallet if hasattr(business, 'wallet') else None
+
         dashboard_data.append({
             'business': business,
-            'wallet_balance': business.wallet.balance if hasattr(business, 'wallet') else 0,
+            'available_balance': wallet.balance if wallet else 0,
+            'escrow_balance': wallet.escrow_balance if wallet else 0,
+            'total_balance': wallet.total_balance if wallet else 0,
             'total_revenue': total_revenue,
             'total_orders': total_orders,
             'pending_orders': pending_orders,
@@ -67,19 +68,10 @@ def dashboard(request):
     })
 
 
-# ============================================================
-# CUSTOMER TRANSACTION HISTORY
-#
-# Shows the logged-in customer every payment they have made.
-# Groups by master transaction so multi-vendor checkouts
-# appear as one payment with multiple vendor orders beneath.
-# ============================================================
 @login_required
 def transaction_history(request):
     """
     Customer view — all payments made by this user.
-    Each entry shows the master transaction with all
-    vendor orders nested beneath it.
     """
     transactions = (
         Transaction.objects
@@ -103,12 +95,6 @@ def transaction_history(request):
     })
 
 
-# ============================================================
-# VENDOR SALES HISTORY
-#
-# Shows the vendor all orders received across their businesses.
-# Filters by the logged-in user's businesses only.
-# ============================================================
 @login_required
 def sales_history(request):
     """
@@ -136,12 +122,6 @@ def sales_history(request):
     })
 
 
-# ============================================================
-# VENDOR PAYOUT HISTORY
-#
-# Shows the vendor all withdrawal requests they have made
-# across all their businesses — with full status tracking.
-# ============================================================
 @login_required
 def payout_history(request):
     """

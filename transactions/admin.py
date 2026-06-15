@@ -1,14 +1,8 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Transaction, WebhookEvent
+from .models import Transaction, WebhookEvent, EscrowEntry
 
 
-# ============================================================
-# TRANSACTION ADMIN
-# Full visibility into every financial movement on the platform.
-# Read-only — financial records must never be editable from
-# the admin panel to preserve audit integrity.
-# ============================================================
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
 
@@ -70,25 +64,13 @@ class TransactionAdmin(admin.ModelAdmin):
         }
         colour = colours.get(obj.status, '#6b7280')
         return format_html(
-            '<span style="'
-            'background:{};'
-            'color:white;'
-            'padding:2px 10px;'
-            'border-radius:12px;'
-            'font-size:11px;'
-            'font-weight:600;'
-            '">{}</span>',
+            '<span style="background:{};color:white;padding:2px 10px;'
+            'border-radius:12px;font-size:11px;font-weight:600;">{}</span>',
             colour,
             obj.status.upper(),
         )
 
 
-# ============================================================
-# WEBHOOK EVENT ADMIN
-# Full log of every event received from Paystack.
-# Critical for debugging payment issues and auditing.
-# All fields are read-only — raw logs must never be modified.
-# ============================================================
 @admin.register(WebhookEvent)
 class WebhookEventAdmin(admin.ModelAdmin):
 
@@ -146,14 +128,8 @@ class WebhookEventAdmin(admin.ModelAdmin):
         }
         colour = colours.get(obj.status, '#6b7280')
         return format_html(
-            '<span style="'
-            'background:{};'
-            'color:white;'
-            'padding:2px 10px;'
-            'border-radius:12px;'
-            'font-size:11px;'
-            'font-weight:600;'
-            '">{}</span>',
+            '<span style="background:{};color:white;padding:2px 10px;'
+            'border-radius:12px;font-size:11px;font-weight:600;">{}</span>',
             colour,
             obj.status.upper(),
         )
@@ -163,14 +139,84 @@ class WebhookEventAdmin(admin.ModelAdmin):
         import json
         formatted = json.dumps(obj.payload, indent=2)
         return format_html(
-            '<pre style="'
-            'background:#1e1e1e;'
-            'color:#d4d4d4;'
-            'padding:16px;'
-            'border-radius:8px;'
-            'font-size:12px;'
-            'overflow-x:auto;'
-            'max-height:400px;'
-            '">{}</pre>',
+            '<pre style="background:#1e1e1e;color:#d4d4d4;padding:16px;'
+            'border-radius:8px;font-size:12px;overflow-x:auto;'
+            'max-height:400px;">{}</pre>',
             formatted,
         )
+
+
+# ============================================================
+# ESCROW ENTRY ADMIN
+# Full audit trail of every escrow hold and release.
+# Admins can see is_frozen status and manually inspect
+# the lifecycle of any order's escrow funds.
+# All fields read-only — escrow movements are system-generated.
+# ============================================================
+@admin.register(EscrowEntry)
+class EscrowEntryAdmin(admin.ModelAdmin):
+
+    list_display = (
+        'order',
+        'business',
+        'entry_type_badge',
+        'amount_display',
+        'frozen_badge',
+        'created_at',
+    )
+
+    list_filter = (
+        'entry_type',
+        'is_frozen',
+        'created_at',
+    )
+
+    search_fields = (
+        'order__reference',
+        'business__name',
+        'transaction__reference',
+        'description',
+    )
+
+    readonly_fields = (
+        'business',
+        'order',
+        'transaction',
+        'entry_type',
+        'amount',
+        'is_frozen',
+        'description',
+        'created_at',
+    )
+
+    ordering = ('-created_at',)
+    date_hierarchy = 'created_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Amount')
+    def amount_display(self, obj):
+        return f'₦{obj.amount:,.2f}'
+
+    @admin.display(description='Type')
+    def entry_type_badge(self, obj):
+        colour = '#f59e0b' if obj.entry_type == 'hold' else '#10b981'
+        return format_html(
+            '<span style="background:{};color:white;padding:2px 10px;'
+            'border-radius:12px;font-size:11px;font-weight:600;">{}</span>',
+            colour,
+            obj.entry_type.upper(),
+        )
+
+    @admin.display(description='Frozen')
+    def frozen_badge(self, obj):
+        if obj.is_frozen:
+            return format_html(
+                '<span style="background:#ef4444;color:white;padding:2px 10px;'
+                'border-radius:12px;font-size:11px;font-weight:600;">FROZEN</span>'
+            )
+        return format_html('<span style="color:#6b7280;">—</span>')

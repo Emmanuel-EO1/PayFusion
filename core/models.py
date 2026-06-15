@@ -8,43 +8,106 @@ from django.core.exceptions import ValidationError
 logger = logging.getLogger('payfusion')
 
 
-# ============================================================
-# PLATFORM CONFIG MODEL
-#
-# A single-row configuration table that stores all platform-wide
-# policy parameters. Admins update these from the admin panel
-# without touching code or redeploying.
-#
-# Parameters covered:
-#   Payment & Commission
-#     - Platform commission rate
-#
-#   Withdrawal Policy
-#     - Hold period days
-#     - Minimum withdrawal amount
-#     - Auto-approval threshold
-#
-#   Fraud Detection
-#     - Failed transaction threshold
-#     - Fraud lookback hours
-#
-# SINGLE ROW DESIGN:
-#   This table holds exactly one row.
-#   Access config anywhere via PlatformConfig.get_config()
-# ============================================================
 class PlatformConfig(models.Model):
 
     # ----------------------------------------------------------
     # COMMISSION SETTINGS
+    # Platform-wide default. Overridden by category rate,
+    # then further overridden by vendor rate (most specific wins).
     # ----------------------------------------------------------
     commission_rate = models.DecimalField(
         max_digits=5,
         decimal_places=4,
         default=Decimal('0.10'),
+        help_text='Platform default commission rate. 0.10 = 10%.'
+    )
+
+    # ----------------------------------------------------------
+    # ESCROW SETTINGS
+    # Controls when vendor funds are released from escrow
+    # to their available (withdrawable) balance.
+    # ----------------------------------------------------------
+
+    # When True: funds released to vendor only after customer
+    # confirms delivery. When False: funds released immediately
+    # on payment confirmation (old behaviour).
+    escrow_enabled = models.BooleanField(
+        default=True,
         help_text=(
-            'Platform commission rate as a decimal. '
-            '0.10 = 10%, 0.05 = 5%. '
-            'Applied to every vendor settlement.'
+            'When enabled, vendor funds are held in escrow until '
+            'the customer confirms delivery. '
+            'Disabling releases funds immediately on payment.'
+        )
+    )
+
+    # ----------------------------------------------------------
+    # DELIVERY TIMEFRAMES
+    # All enforced by Celery scheduled tasks in Phase 12.
+    # Stored here so admin can adjust without redeploying.
+    # ----------------------------------------------------------
+
+    # How many days vendor has to accept a paid order
+    # before the system auto-cancels and refunds the customer
+    order_acceptance_days = models.PositiveIntegerField(
+        default=2,
+        help_text=(
+            'Days vendor has to accept a paid order. '
+            'After this, order is auto-cancelled and customer refunded.'
+        )
+    )
+
+    # How many days vendor has to ship after accepting
+    order_shipping_days = models.PositiveIntegerField(
+        default=3,
+        help_text=(
+            'Days vendor has to ship after accepting. '
+            'After this, order is auto-cancelled and customer refunded.'
+        )
+    )
+
+    # How many days before an in_transit order is auto-escalated
+    # to admin if customer has not confirmed delivery
+    delivery_timeout_days = models.PositiveIntegerField(
+        default=14,
+        help_text=(
+            'Days before an in_transit order is flagged for admin '
+            'review if customer has not confirmed delivery.'
+        )
+    )
+
+    # How many days after delivery the customer has to confirm.
+    # After this, delivery is auto-confirmed and escrow released.
+    # Protects vendors from customers who never click confirm.
+    customer_confirm_days = models.PositiveIntegerField(
+        default=7,
+        help_text=(
+            'Days after shipping that customer has to confirm delivery. '
+            'After this, delivery is auto-confirmed and escrow released.'
+        )
+    )
+
+    # ----------------------------------------------------------
+    # DISPUTE TIMEFRAMES
+    # ----------------------------------------------------------
+
+    # How many days after delivery confirmation a customer
+    # can raise a dispute. After this window, dispute option
+    # is removed from the customer's order page.
+    dispute_window_days = models.PositiveIntegerField(
+        default=3,
+        help_text=(
+            'Days after delivery confirmation that customer can '
+            'raise a dispute. After this window, disputes are closed.'
+        )
+    )
+
+    # How many days admin has to resolve an open dispute
+    # before it is auto-escalated to senior admin
+    dispute_resolution_days = models.PositiveIntegerField(
+        default=7,
+        help_text=(
+            'Days admin has to resolve a dispute before '
+            'it is auto-escalated.'
         )
     )
 
@@ -53,32 +116,21 @@ class PlatformConfig(models.Model):
     # ----------------------------------------------------------
     withdrawal_hold_days = models.PositiveIntegerField(
         default=7,
-        help_text=(
-            'Number of days funds must be held after a sale '
-            'before a vendor can withdraw. '
-            'Industry standard is 7 days.'
-        )
+        help_text='Days funds must be held after escrow release before withdrawal.'
     )
 
     minimum_withdrawal_amount = models.DecimalField(
         max_digits=12,
         decimal_places=2,
         default=Decimal('500.00'),
-        help_text=(
-            'Minimum withdrawal amount in Naira. '
-            'Prevents micro-withdrawals that incur unnecessary transfer fees.'
-        )
+        help_text='Minimum withdrawal amount in Naira.'
     )
 
     auto_approval_threshold = models.DecimalField(
         max_digits=12,
         decimal_places=2,
         default=Decimal('500000.00'),
-        help_text=(
-            'Withdrawals at or above this amount (Naira) require '
-            'manual admin approval before transfer is initiated. '
-            'Default: ₦500,000.'
-        )
+        help_text='Withdrawals at or above this require manual admin approval.'
     )
 
     # ----------------------------------------------------------
@@ -86,18 +138,12 @@ class PlatformConfig(models.Model):
     # ----------------------------------------------------------
     fraud_failed_tx_threshold = models.PositiveIntegerField(
         default=3,
-        help_text=(
-            'Number of failed transactions within the lookback window '
-            'that flags a withdrawal for admin review. Default: 3.'
-        )
+        help_text='Failed transactions within lookback window that triggers fraud flag.'
     )
 
     fraud_lookback_hours = models.PositiveIntegerField(
         default=24,
-        help_text=(
-            'How many hours back to look when checking for '
-            'suspicious failed transaction activity. Default: 24 hours.'
-        )
+        help_text='Hours to look back when checking for suspicious activity.'
     )
 
     # ----------------------------------------------------------
@@ -109,7 +155,6 @@ class PlatformConfig(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        help_text='Last admin who updated the platform configuration.',
         related_name='platform_config_updates',
     )
 
@@ -122,35 +167,29 @@ class PlatformConfig(models.Model):
             f'PayFusion Config | '
             f'Commission: {int(self.commission_rate * 100)}% | '
             f'Hold: {self.withdrawal_hold_days}d | '
-            f'Min withdrawal: N{self.minimum_withdrawal_amount:,.2f}'
+            f'Escrow: {"ON" if self.escrow_enabled else "OFF"}'
         )
 
     def clean(self):
-        # Enforce single-row constraint
         if not self.pk and PlatformConfig.objects.exists():
             raise ValidationError(
                 'Only one Platform Configuration record is allowed. '
                 'Edit the existing record instead of creating a new one.'
             )
 
-        # Commission rate must be between 0 and 1
         if not (Decimal('0') <= self.commission_rate <= Decimal('1')):
             raise ValidationError(
-                'Commission rate must be between 0 and 1. '
-                'Example: 0.10 for 10%.'
+                'Commission rate must be between 0 and 1. Example: 0.10 for 10%.'
             )
 
-        # Minimum withdrawal must be positive
         if self.minimum_withdrawal_amount <= 0:
             raise ValidationError(
                 'Minimum withdrawal amount must be greater than zero.'
             )
 
-        # Auto approval threshold must be above minimum withdrawal
         if self.auto_approval_threshold <= self.minimum_withdrawal_amount:
             raise ValidationError(
-                'Auto-approval threshold must be greater than '
-                'the minimum withdrawal amount.'
+                'Auto-approval threshold must be greater than minimum withdrawal amount.'
             )
 
     def save(self, *args, **kwargs):
@@ -159,23 +198,11 @@ class PlatformConfig(models.Model):
 
     @classmethod
     def get_config(cls):
-        """
-        Fetch the platform configuration.
-        Creates default instance if none exists.
-        Always returns a valid config object — system never crashes.
-
-        Usage anywhere in codebase:
-            from core.models import PlatformConfig
-            config = PlatformConfig.get_config()
-            rate = config.commission_rate
-        """
         config = cls.objects.first()
-
         if config is None:
             logger.warning(
-                'PlatformConfig not found in database — using defaults. '
+                'PlatformConfig not found — using defaults. '
                 'Please create a configuration record in the admin panel.'
             )
             config = cls()
-
         return config

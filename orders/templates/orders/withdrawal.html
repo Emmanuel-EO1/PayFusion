@@ -23,6 +23,12 @@
                     Available Balance:
                     <strong>₦{{ business.wallet.balance|floatformat:2 }}</strong>
                 </p>
+                {% if business.wallet.escrow_balance > 0 %}
+                <p class="text-muted small">
+                    ₦{{ business.wallet.escrow_balance|floatformat:2 }} held in escrow
+                    — released as orders are delivered
+                </p>
+                {% endif %}
 
                 {# --- Bank Accounts Section --- #}
                 <hr>

@@ -19,7 +19,12 @@ from core.email_service import (
     send_transfer_failed,
 )
 from transactions.models import Transaction, WebhookEvent
-from transactions.services import credit_wallet, debit_wallet
+from transactions.services import (
+    credit_wallet,
+    debit_wallet,
+    credit_escrow,
+    get_commission_rate,
+)
 from tenants.models import Business, WithdrawalRequest
 from orders.models import Order
 
@@ -27,9 +32,6 @@ logger = logging.getLogger('payfusion')
 User = get_user_model()
 
 
-# ============================================================
-# HELPER — Get or create the PayFusion Treasury business
-# ============================================================
 def _get_treasury():
     system_user, _ = User.objects.get_or_create(
         email='system@payfusion.com',
@@ -49,9 +51,6 @@ def _get_treasury():
     return treasury, system_user
 
 
-# ============================================================
-# MAIN WEBHOOK ENDPOINT
-# ============================================================
 @csrf_exempt
 def paystack_webhook(request):
 
@@ -85,13 +84,11 @@ def paystack_webhook(request):
 
     logger.info(f'Webhook received — event: {event_type} | reference: {reference}')
 
-    # Duplicate event detection
     if event_id:
         if WebhookEvent.objects.filter(event_id=event_id).exists():
             logger.info(f'Duplicate webhook event ignored — event_id: {event_id}')
             return HttpResponse(status=200)
 
-    # Log raw event immediately
     webhook_event = WebhookEvent.objects.create(
         event_id=event_id,
         event_type=event_type,
@@ -124,6 +121,14 @@ def paystack_webhook(request):
 
 # ============================================================
 # HANDLER 1 — charge.success
+#
+# UPDATED FOR PHASE 9:
+#   - Commission rate resolved per-order via get_commission_rate()
+#     (vendor rate -> category rate -> platform default)
+#   - If escrow_enabled: vendor settlement goes to escrow_balance
+#     via credit_escrow() — held until delivery confirmed
+#   - If escrow disabled: falls back to old behaviour —
+#     direct credit to available balance via credit_wallet()
 # ============================================================
 def _handle_charge_success(event_data, webhook_event):
 
@@ -154,10 +159,7 @@ def _handle_charge_success(event_data, webhook_event):
         webhook_event.save(update_fields=['status', 'error_message'])
         return
 
-    # Load commission rate from PlatformConfig
     config = PlatformConfig.get_config()
-    commission_rate = config.commission_rate
-
     treasury, system_user = _get_treasury()
 
     with transaction.atomic():
@@ -179,12 +181,23 @@ def _handle_charge_success(event_data, webhook_event):
             description=f'Gross collection for checkout {txn.reference}'
         )
 
-        orders = txn.orders.select_related('business').all()
+        orders = txn.orders.select_related('business').prefetch_related('items__product').all()
 
         for order in orders:
 
             if order.status == 'paid':
                 continue
+
+            # Resolve commission rate for this specific order.
+            # Uses the first item's product/category as the
+            # commission basis. An order with multiple products
+            # from different categories uses the first item's
+            # category — acceptable for now since most orders
+            # are single-category. Multi-category commission
+            # splitting can be added in a later phase if needed.
+            first_item = order.items.first()
+            product = first_item.product if first_item else None
+            commission_rate = get_commission_rate(order.business, product)
 
             commission_fee = (order.total_amount * commission_rate).quantize(
                 Decimal('0.01')
@@ -192,8 +205,13 @@ def _handle_charge_success(event_data, webhook_event):
             vendor_settlement = order.total_amount - commission_fee
 
             order.status = 'paid'
-            order.save(update_fields=['status'])
+            order.commission_rate_applied = commission_rate
+            order.commission_fee = commission_fee
+            order.save(update_fields=['status', 'commission_rate_applied', 'commission_fee'])
 
+            # Debit Treasury for vendor's share regardless of
+            # escrow setting — Treasury always allocates the
+            # vendor settlement amount immediately.
             debit_wallet(
                 business=treasury,
                 amount=vendor_settlement,
@@ -201,18 +219,37 @@ def _handle_charge_success(event_data, webhook_event):
                 description=f'Vendor payout allocation for order via {txn.reference}'
             )
 
-            credit_wallet(
-                business=order.business,
-                amount=vendor_settlement,
-                user=txn.user,
-                description=f'Settlement credit for order via {txn.reference}'
-            )
-
-            logger.info(
-                f'Vendor {order.business.name} credited N{vendor_settlement} '
-                f'(commission: N{commission_fee} at {int(commission_rate * 100)}%) '
-                f'for order via {reference}'
-            )
+            if config.escrow_enabled:
+                # Hold in escrow until delivery confirmed
+                credit_escrow(
+                    business=order.business,
+                    order=order,
+                    txn=txn,
+                    amount=vendor_settlement,
+                    description=(
+                        f'Escrow hold for order {order.reference} '
+                        f'(commission: N{commission_fee} '
+                        f'at {commission_rate * 100}%)'
+                    ),
+                )
+                logger.info(
+                    f'Vendor {order.business.name} escrow held N{vendor_settlement} '
+                    f'(commission: N{commission_fee} at {commission_rate * 100}%) '
+                    f'for order via {reference}'
+                )
+            else:
+                # Escrow disabled — credit available balance directly
+                credit_wallet(
+                    business=order.business,
+                    amount=vendor_settlement,
+                    user=txn.user,
+                    description=f'Settlement credit for order via {txn.reference}'
+                )
+                logger.info(
+                    f'Vendor {order.business.name} credited N{vendor_settlement} '
+                    f'(commission: N{commission_fee} at {commission_rate * 100}%) '
+                    f'for order via {reference} [escrow disabled]'
+                )
 
     webhook_event.status = 'processed'
     webhook_event.processed_at = timezone.now()
@@ -262,7 +299,6 @@ def _handle_transfer_success(event_data, webhook_event):
             description=f'Treasury finalised payout for withdrawal {txn.reference}'
         )
 
-        # Update WithdrawalRequest to completed
         try:
             wr = WithdrawalRequest.objects.get(transaction=txn)
             wr.status = 'completed'
@@ -319,7 +355,6 @@ def _handle_transfer_failed(event_data, webhook_event):
             description=f'Reversal: Failed transfer returned to wallet — {txn.reference}'
         )
 
-        # Update WithdrawalRequest to failed
         try:
             wr = WithdrawalRequest.objects.get(transaction=txn)
             wr.status = 'failed'

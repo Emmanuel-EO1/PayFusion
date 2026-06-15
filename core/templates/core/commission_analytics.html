@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Commission Analytics — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">Commission Analytics</h2>
+
+    {# --- Summary Cards --- #}
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="p-3 border rounded text-center">
+                <p class="text-muted small mb-1">Total Commission (All Time)</p>
+                <h3>₦{{ total_commission|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3 border rounded text-center">
+                <p class="text-muted small mb-1">This Month</p>
+                <h3>₦{{ this_month|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3 border rounded text-center">
+                <p class="text-muted small mb-1">This Week</p>
+                <h3>₦{{ this_week|floatformat:2 }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <p class="text-muted small mb-4">
+        Based on {{ total_orders_count }} paid order(s) with recorded commission.
+    </p>
+
+    {# --- Top Vendors --- #}
+    <div class="card mb-4" style="border:1px solid #ddd;">
+        <div class="card-body p-4">
+            <h5 class="mb-3">Top Vendors by Commission Contribution</h5>
+
+            {% if by_vendor %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Vendor</th>
+                            <th>Orders</th>
+                            <th>Commission</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for vendor in by_vendor %}
+                        <tr>
+                            <td>{{ vendor.business__name }}</td>
+                            <td>{{ vendor.order_count }}</td>
+                            <td>₦{{ vendor.total|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="text-muted small">No data yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {# --- By Category --- #}
+    <div class="card mb-4" style="border:1px solid #ddd;">
+        <div class="card-body p-4">
+            <h5 class="mb-3">Commission by Category</h5>
+
+            {% if by_category %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Orders</th>
+                            <th>Commission</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, data in by_category %}
+                        <tr>
+                            <td>{{ name }}</td>
+                            <td>{{ data.count }}</td>
+                            <td>₦{{ data.total|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="text-muted small">No data yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {# --- Monthly Trend --- #}
+    <div class="card mb-4" style="border:1px solid #ddd;">
+        <div class="card-body p-4">
+            <h5 class="mb-3">Monthly Trend (Last 12 Months)</h5>
+
+            {% if by_month %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Commission</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in by_month %}
+                        <tr>
+                            <td>{{ entry.month|date:"F Y" }}</td>
+                            <td>₦{{ entry.total|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="text-muted small">No data yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <a href="{% url 'core:home' %}" class="btn btn-outline-secondary">Back to Home</a>
+
+</div>
+{% endblock %}

@@ -12,7 +12,7 @@
         <a href="{% url 'orders:withdrawal_page' %}" class="btn btn-success me-2">
             Request Withdrawal
         </a>
-        <a href="{% url 'delivery:vendor_orders' %}" class="btn btn-outline-secondary me-2">
+        <a href="{% url 'delivery:vendor_orders' %}" class="btn btn-outline-dark me-2">
             Order Management
         </a>
         <a href="{% url 'orders:bank_accounts' %}" class="btn btn-outline-primary me-2">
@@ -35,27 +35,52 @@
 
             <h2>{{ data.business.name }}</h2>
 
-            {# --- Stats --- #}
-            <div class="row mt-3 mb-3">
-                <div class="col-md-3">
-                    <div class="p-3 border rounded text-center">
-                        <p class="text-muted small mb-1">Wallet Balance</p>
-                        <h4>₦{{ data.wallet_balance|floatformat:2 }}</h4>
+            {# --- Wallet Breakdown --- #}
+            <div class="row mt-3 mb-2">
+                <div class="col-md-4">
+                    <div class="p-3 border rounded text-center" style="background:#fffbeb;">
+                        <p class="text-muted small mb-1">Escrow (Held)</p>
+                        <h4 class="text-warning">₦{{ data.escrow_balance|floatformat:2 }}</h4>
+                        <p class="text-muted small mb-0">
+                            Released when delivery is confirmed
+                        </p>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-4">
+                    <div class="p-3 border rounded text-center" style="background:#ecfdf5;">
+                        <p class="text-muted small mb-1">Available</p>
+                        <h4 class="text-success">₦{{ data.available_balance|floatformat:2 }}</h4>
+                        <p class="text-muted small mb-0">
+                            Withdrawable now
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 border rounded text-center">
+                        <p class="text-muted small mb-1">Total</p>
+                        <h4>₦{{ data.total_balance|floatformat:2 }}</h4>
+                        <p class="text-muted small mb-0">
+                            Escrow + Available
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {# --- Stats --- #}
+            <div class="row mt-2 mb-3">
+                <div class="col-md-4">
                     <div class="p-3 border rounded text-center">
                         <p class="text-muted small mb-1">Total Revenue</p>
                         <h4>₦{{ data.total_revenue|floatformat:2 }}</h4>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <div class="p-3 border rounded text-center">
                         <p class="text-muted small mb-1">Total Orders</p>
                         <h4>{{ data.total_orders }}</h4>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <div class="p-3 border rounded text-center">
                         <p class="text-muted small mb-1">Pending Orders</p>
                         <h4>{{ data.pending_orders }}</h4>

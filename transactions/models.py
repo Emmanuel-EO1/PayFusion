@@ -8,25 +8,17 @@ from django.utils.crypto import get_random_string
 logger = logging.getLogger('payfusion')
 
 
-# ============================================================
-# REFERENCE GENERATOR
-# ============================================================
 def generate_transaction_reference():
     return 'PAYFUSION_' + get_random_string(12).upper()
 
 
-# ============================================================
-# TRANSACTION MODEL
-# The immutable financial record of every money movement.
-# Never modify balances here — that is the job of services.py
-# ============================================================
 class Transaction(models.Model):
 
     TRANSACTION_TYPES = (
         ('credit', 'Credit'),
         ('debit', 'Debit'),
-        ('payment', 'Payment'),         # Master checkout transaction (Treasury)
-        ('withdrawal', 'Withdrawal'),   # Vendor payout request
+        ('payment', 'Payment'),
+        ('withdrawal', 'Withdrawal'),
     )
 
     STATUS_CHOICES = (
@@ -62,13 +54,9 @@ class Transaction(models.Model):
     class Meta:
         ordering = ['-created_at']
         indexes = [
-            # Fast lookups by reference (used on every webhook + callback)
             models.Index(fields=['reference'], name='txn_reference_idx'),
-            # Fast lookups by user (transaction history pages)
             models.Index(fields=['user', '-created_at'], name='txn_user_date_idx'),
-            # Fast lookups by business (vendor dashboard)
             models.Index(fields=['business', '-created_at'], name='txn_business_date_idx'),
-            # Fast status filtering
             models.Index(fields=['status'], name='txn_status_idx'),
         ]
 
@@ -81,52 +69,25 @@ class Transaction(models.Model):
         )
 
     def save(self, *args, **kwargs):
-        # Model is an immutable historical record.
-        # Balance updates happen exclusively in services.py
         super().save(*args, **kwargs)
 
 
-# ============================================================
-# WEBHOOK EVENT MODEL
-# Logs every raw Paystack webhook payload permanently.
-#
-# Why this exists:
-#   - If handler crashes mid-processing, the raw event is preserved
-#   - Enables manual replay of any failed event
-#   - Provides proof of receipt if Paystack disputes delivery
-#   - Catches and blocks duplicate events (Paystack retries on failure)
-#   - Essential audit trail for a fintech platform
-# ============================================================
 class WebhookEvent(models.Model):
 
     STATUS_CHOICES = (
-        ('received', 'Received'),       # Event logged but not yet processed
-        ('processed', 'Processed'),     # Successfully handled
-        ('failed', 'Failed'),           # Handler crashed or returned error
-        ('duplicate', 'Duplicate'),     # Already processed — safely ignored
-        ('ignored', 'Ignored'),         # Unrecognised event type — safely skipped
+        ('received', 'Received'),
+        ('processed', 'Processed'),
+        ('failed', 'Failed'),
+        ('duplicate', 'Duplicate'),
+        ('ignored', 'Ignored'),
     )
 
-    # The unique Paystack event ID (from payload id field if present)
-    # Used to detect and block duplicate deliveries
     event_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
-
-    # The event type e.g. charge.success, transfer.success, transfer.failed
     event_type = models.CharField(max_length=100)
-
-    # The transaction reference from the event payload
     reference = models.CharField(max_length=100, blank=True, null=True, db_index=True)
-
-    # Full raw JSON payload from Paystack — never modified, always complete
     payload = models.JSONField()
-
-    # Processing status
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='received')
-
-    # If processing failed, store the error message here for debugging
     error_message = models.TextField(blank=True, null=True)
-
-    # Timestamps
     received_at = models.DateTimeField(auto_now_add=True)
     processed_at = models.DateTimeField(null=True, blank=True)
 
@@ -141,3 +102,104 @@ class WebhookEvent(models.Model):
 
     def __str__(self):
         return f"{self.event_type} | {self.reference} | {self.status}"
+
+
+# ============================================================
+# ESCROW ENTRY MODEL
+#
+# Records every escrow movement for every vendor order.
+# Two entry types exist:
+#   hold    → funds moved into escrow on payment confirmation
+#   release → funds moved from escrow to available balance
+#             on delivery confirmation (or auto-confirmation)
+#
+# Why this exists separate from Transaction:
+#   Transaction records money movement between parties
+#   (customer → treasury, treasury → vendor wallet).
+#   EscrowEntry records the internal lifecycle of those funds
+#   within the vendor's wallet — held vs available.
+#   These are different concerns requiring separate records.
+#
+# is_frozen:
+#   Set to True when a dispute is raised on the linked order.
+#   Frozen entries cannot be released — funds stay locked
+#   until the dispute is resolved by admin.
+#   This prevents vendors from having escrow auto-released
+#   while a customer dispute is still open.
+# ============================================================
+class EscrowEntry(models.Model):
+
+    ENTRY_TYPES = (
+        ('hold',    'Hold'),     # Funds moved into escrow
+        ('release', 'Release'),  # Funds released to available balance
+    )
+
+    # The vendor's business this escrow entry belongs to
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.PROTECT,
+        related_name='escrow_entries'
+    )
+
+    # The order that triggered this escrow movement
+    # PROTECT — never delete an order that has escrow entries
+    order = models.ForeignKey(
+        'orders.Order',
+        on_delete=models.PROTECT,
+        related_name='escrow_entries'
+    )
+
+    # The master payment transaction this escrow entry relates to
+    transaction = models.ForeignKey(
+        Transaction,
+        on_delete=models.PROTECT,
+        related_name='escrow_entries'
+    )
+
+    # hold: funds entering escrow on payment confirmation
+    # release: funds leaving escrow to available balance
+    entry_type = models.CharField(max_length=10, choices=ENTRY_TYPES)
+
+    # Amount in Naira — always positive regardless of direction
+    # Direction is determined by entry_type
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+
+    # Frozen when a dispute is raised on the linked order.
+    # Frozen entries cannot be auto-released by Celery.
+    # Only unfrozen by admin when dispute is resolved.
+    is_frozen = models.BooleanField(default=False)
+
+    # Why this entry was created — useful for admin debugging
+    description = models.TextField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            # Fast lookup of all escrow entries for a business
+            models.Index(
+                fields=['business', '-created_at'],
+                name='escrow_biz_date_idx'
+            ),
+            # Fast lookup by order — used when releasing escrow
+            # on delivery confirmation and when freezing on dispute
+            models.Index(
+                fields=['order'],
+                name='escrow_order_idx'
+            ),
+            # Fast lookup of frozen entries — used by admin
+            # and dispute resolution service
+            models.Index(
+                fields=['is_frozen'],
+                name='escrow_frozen_idx'
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f'Escrow {self.entry_type.capitalize()} | '
+            f'{self.business.name} | '
+            f'N{self.amount:,.2f} | '
+            f'Order: {self.order.reference}'
+        )
