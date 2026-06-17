@@ -8,13 +8,20 @@
 
     <h2>Something Went Wrong</h2>
 
-    <p class="text-muted mt-3">
-        {% if message %}
-            {{ message }}
-        {% else %}
-            We encountered an error during checkout. No charge was made.
+    {% if message %}
+        <p class="text-muted mt-3">{{ message }}</p>
+        {% if insufficient_items %}
+            <ul class="text-muted text-start d-inline-block">
+                {% for item in insufficient_items %}
+                <li>{{ item }}</li>
+                {% endfor %}
+            </ul>
         {% endif %}
-    </p>
+    {% else %}
+        <p class="text-muted mt-3">
+            We encountered an error during checkout. No charge was made.
+        </p>
+    {% endif %}
 
     <div class="mt-4">
         <a href="{% url 'cart:cart_detail' %}" class="btn btn-primary me-2">

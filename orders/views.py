@@ -72,6 +72,36 @@ def checkout(request):
 
         business_groups[business.id]['total'] += price * quantity
 
+    # --- Stock validation ---
+    # Checked here, before any Order/OrderItem is created.
+    # Blocks the entire checkout if any single item has
+    # insufficient stock — no partial orders are created.
+    insufficient_items = []
+
+    for group in business_groups.values():
+        for item in group['items']:
+            product = item['product']
+            requested_qty = item['quantity']
+
+            if product.stock_quantity < requested_qty:
+                insufficient_items.append(
+                    f'{product.name} (only {product.stock_quantity} left, '
+                    f'you requested {requested_qty})'
+                )
+
+    if insufficient_items:
+        logger.warning(
+            f'Checkout blocked — insufficient stock for user {request.user.id}: '
+            f'{", ".join(insufficient_items)}'
+        )
+        return render(request, 'orders/checkout_error.html', {
+            'message': (
+                'Some items in your cart are no longer available '
+                'in the requested quantity:'
+            ),
+            'insufficient_items': insufficient_items,
+        })
+
     grand_total = sum(
         group['total'] for group in business_groups.values()
     ).quantize(Decimal('0.01'))

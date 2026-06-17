@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Edit {{ product.name }} — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width:700px;">
+
+    <h2 class="mb-4">Edit Product</h2>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} alert-dismissible">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card" style="border:1px solid #ddd;">
+        <div class="card-body p-4">
+
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label class="form-label">Product Name</label>
+                    <input type="text" name="name" class="form-control"
+                           value="{{ product.name }}" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-control" rows="3">{{ product.description }}</textarea>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Price (₦)</label>
+                        <input type="number" step="0.01" min="0.01" name="price"
+                               class="form-control" value="{{ product.price }}" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Category</label>
+                        <select name="category" class="form-select">
+                            <option value="">Uncategorised</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}"
+                                {% if product.category_id == category.id %}selected{% endif %}>
+                                {{ category.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">SKU</label>
+                        <input type="text" name="sku" class="form-control"
+                               value="{{ product.sku|default:'' }}"
+                               placeholder="Optional, e.g. NIKE-AF1-WHT-42">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="form-check mt-2">
+                            <input type="checkbox" name="is_active" class="form-check-input"
+                                   id="is_active" {% if product.is_active %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">
+                                Product is active (visible to customers)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+                <h5 class="mb-3">Inventory</h5>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Stock Quantity</label>
+                        <input type="number" min="0" name="stock_quantity"
+                               class="form-control" value="{{ product.stock_quantity }}" required>
+                        <p class="text-muted small mt-1 mb-0">
+                            Update this number to restock — increase it when
+                            new stock arrives, decrease it for manual corrections.
+                        </p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Low Stock Threshold</label>
+                        <input type="number" min="0" name="low_stock_threshold"
+                               class="form-control" value="{{ product.low_stock_threshold }}" required>
+                        <p class="text-muted small mt-1 mb-0">
+                            You'll see a low stock warning once quantity
+                            falls to or below this number.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">
+                        Save Changes
+                    </button>
+                    <a href="{% url 'products:manage_products' %}" class="btn btn-outline-secondary">
+                        Cancel
+                    </a>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+</div>
+{% endblock %}

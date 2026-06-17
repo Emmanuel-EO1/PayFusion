@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Manage Products — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">Manage Products</h2>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} alert-dismissible">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="get" class="mb-4">
+        <div class="row g-2">
+            <div class="col-auto">
+                <input type="text" name="q" class="form-control"
+                       placeholder="Search by name or SKU"
+                       value="{{ search_query }}">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-outline-primary">Search</button>
+            </div>
+            {% if search_query %}
+            <div class="col-auto">
+                <a href="{% url 'products:manage_products' %}" class="btn btn-outline-secondary">
+                    Clear
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if not business_products %}
+        <p class="text-muted">No businesses found.</p>
+    {% else %}
+        {% for group in business_products %}
+        <div class="card mb-5" style="border:1px solid #ddd;">
+            <div class="card-body p-4">
+                <h4 class="mb-3">{{ group.business.name }}</h4>
+
+                {% if not group.products %}
+                    <p class="text-muted">
+                        {% if search_query %}
+                            No products match "{{ search_query }}".
+                        {% else %}
+                            No products listed yet.
+                        {% endif %}
+                    </p>
+                {% else %}
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>SKU</th>
+                                    <th>Category</th>
+                                    <th>Price</th>
+                                    <th>Stock</th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for product in group.products %}
+                                <tr>
+                                    <td>{{ product.name }}</td>
+                                    <td class="text-muted small">
+                                        {{ product.sku|default:"—" }}
+                                    </td>
+                                    <td class="text-muted small">
+                                        {{ product.category.name|default:"Uncategorised" }}
+                                    </td>
+                                    <td>₦{{ product.price|floatformat:2 }}</td>
+                                    <td>
+                                        {% if product.stock_quantity == 0 %}
+                                            <span class="badge bg-danger">OUT OF STOCK</span>
+                                        {% elif product.is_low_stock %}
+                                            <span class="badge bg-warning text-dark">
+                                                {{ product.stock_quantity }} (LOW)
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-success">
+                                                {{ product.stock_quantity }}
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if product.is_active %}
+                                            <span class="badge bg-primary">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'products:edit_product' product.id %}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            Edit
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <a href="{% url 'users:dashboard' %}" class="btn btn-outline-secondary">
+        Back to Dashboard
+    </a>
+
+</div>
+{% endblock %}
