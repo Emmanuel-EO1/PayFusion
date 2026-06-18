@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Bulk Edit Variants — {{ product.name }} — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+
+    <h2 class="mb-1">Bulk Edit Variants</h2>
+    <p class="text-muted">{{ product.name }}</p>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'info' %}info{% else %}success{% endif %} alert-dismissible">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    {% if not variants %}
+        <p class="text-muted">
+            No variants yet for this product.
+            <a href="{% url 'products:bulk_generate_variants' product.id %}">
+                Generate variants in bulk
+            </a>
+            or
+            <a href="{% url 'products:add_variant' product.id %}">
+                add one manually
+            </a>.
+        </p>
+    {% else %}
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="table-responsive mb-3">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Attributes</th>
+                            <th>SKU</th>
+                            <th>Price Adjustment (₦)</th>
+                            <th>Stock</th>
+                            <th>Active</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for variant in variants %}
+                        <tr>
+                            <td>
+                                {% for attr in variant.attributes.all %}
+                                    <span class="badge bg-light text-dark border me-1">
+                                        {{ attr.name }}: {{ attr.value }}
+                                    </span>
+                                {% endfor %}
+                            </td>
+                            <td>
+                                <input type="text" name="sku_{{ variant.id }}"
+                                       class="form-control form-control-sm"
+                                       value="{{ variant.sku|default:'' }}"
+                                       style="min-width:140px;">
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" name="price_adjustment_{{ variant.id }}"
+                                       class="form-control form-control-sm"
+                                       value="{{ variant.price_adjustment }}"
+                                       style="min-width:110px;">
+                            </td>
+                            <td>
+                                <input type="number" min="0" name="stock_quantity_{{ variant.id }}"
+                                       class="form-control form-control-sm"
+                                       value="{{ variant.stock_quantity }}"
+                                       style="min-width:90px;" required>
+                            </td>
+                            <td class="text-center">
+                                <input type="checkbox" name="is_active_{{ variant.id }}"
+                                       class="form-check-input"
+                                       {% if variant.is_active %}checked{% endif %}>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <button type="submit" class="btn btn-success">
+                Save All Changes
+            </button>
+            <a href="{% url 'products:manage_variants' product.id %}" class="btn btn-outline-secondary">
+                Cancel
+            </a>
+            <a href="{% url 'products:bulk_generate_variants' product.id %}" class="btn btn-outline-dark">
+                Generate More Variants
+            </a>
+
+        </form>
+
+    {% endif %}
+
+</div>
+{% endblock %}

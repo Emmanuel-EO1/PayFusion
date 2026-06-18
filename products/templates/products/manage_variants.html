@@ -17,9 +17,17 @@
         {% endfor %}
     {% endif %}
 
-    <a href="{% url 'products:add_variant' product.id %}" class="btn btn-success mb-3">
-        Add Variant
+    <a href="{% url 'products:add_variant' product.id %}" class="btn btn-success mb-3 me-2">
+    Add Variant
     </a>
+    <a href="{% url 'products:bulk_generate_variants' product.id %}" class="btn btn-outline-success mb-3 me-2">
+        Bulk Generate
+    </a>
+    {% if variants %}
+    <a href="{% url 'products:bulk_edit_variants' product.id %}" class="btn btn-outline-dark mb-3">
+        Bulk Edit
+    </a>
+    {% endif %}
 
     <div class="card" style="border:1px solid #ddd;">
         <div class="card-body p-4">

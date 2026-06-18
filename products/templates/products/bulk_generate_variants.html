@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Bulk Generate Variants — {{ product.name }} — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width:700px;">
+
+    <h2 class="mb-1">Bulk Generate Variants</h2>
+    <p class="text-muted">{{ product.name }}</p>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'info' %}info{% else %}success{% endif %} alert-dismissible">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card mb-4" style="border:1px solid #ddd; background:#f8f9fa;">
+        <div class="card-body p-3">
+            <p class="mb-0 small">
+                Define each attribute type and list its possible values,
+                separated by commas. Every combination across all attribute
+                types will be created automatically. Combinations that
+                already exist for this product are skipped, so it is safe
+                to run this again later if you add a new colour or size.
+            </p>
+        </div>
+    </div>
+
+    <div class="card" style="border:1px solid #ddd;">
+        <div class="card-body p-4">
+
+            <form method="post">
+                {% csrf_token %}
+
+                {% for i in attribute_rows %}
+                <div class="row mb-3 align-items-start">
+                    <div class="col-4">
+                        <label class="form-label">Attribute {{ i }} Name</label>
+                        <input type="text" name="attribute_name_{{ i }}" class="form-control"
+                               placeholder="e.g. Colour">
+                    </div>
+                    <div class="col-8">
+                        <label class="form-label">Possible Values</label>
+                        <input type="text" name="attribute_values_{{ i }}" class="form-control"
+                               placeholder="e.g. Black, White, Red">
+                        <p class="text-muted small mt-1 mb-0">
+                            Separate each value with a comma. Leave both fields
+                            blank to skip this attribute slot.
+                        </p>
+                    </div>
+                </div>
+                {% endfor %}
+
+                <hr class="my-4">
+
+                <p class="text-muted small">
+                    Example: Size → 40, 41, 42 and Colour → Black, White
+                    will generate 6 variants (3 sizes × 2 colours), each
+                    starting with zero stock. You will set stock and pricing
+                    for each one on the next page.
+                </p>
+
+                <button type="submit" class="btn btn-success">
+                    Generate Variants
+                </button>
+                <a href="{% url 'products:manage_variants' product.id %}" class="btn btn-outline-secondary">
+                    Cancel
+                </a>
+
+            </form>
+
+        </div>
+    </div>
+
+</div>
+{% endblock %}
