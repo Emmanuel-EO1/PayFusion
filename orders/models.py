@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from django.db import models
 from django.conf import settings
-from products.models import Product
+from products.models import Product, ProductVariant
 from tenants.models import Business
 from transactions.models import Transaction
 import uuid
@@ -22,9 +22,6 @@ class Order(models.Model):
 
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
-    # Commission snapshot — set once at settlement time (charge.success).
-    # Stored permanently so historical analytics remain accurate
-    # even if commission rates change later.
     commission_rate_applied = models.DecimalField(
         max_digits=5,
         decimal_places=4,
@@ -50,8 +47,6 @@ class Order(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['status']),
-            # Fast aggregation for commission analytics —
-            # filter paid orders by date range
             models.Index(fields=['status', '-created_at'], name='order_status_date_idx'),
         ]
 
@@ -74,6 +69,18 @@ class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
 
+    # Which specific variant was purchased, if the product has
+    # variants. Null for simple products (no variants).
+    # PROTECT — an order item is permanent purchase history;
+    # a variant should never be deleted while orders reference it.
+    variant = models.ForeignKey(
+        ProductVariant,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='order_items'
+    )
+
     quantity = models.PositiveIntegerField(default=1)
     price = models.DecimalField(max_digits=12, decimal_places=2)
 
@@ -82,12 +89,19 @@ class OrderItem(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=['order']),
+            models.Index(fields=['variant'], name='orderitem_variant_idx'),
         ]
 
     def __str__(self):
+        if self.variant:
+            return f'{self.variant.display_name} x {self.quantity}'
         return f'{self.product.name} x {self.quantity}'
 
     def save(self, *args, **kwargs):
+        # Price is set explicitly by the checkout view (from cart
+        # data, which already reflects variant.final_price if a
+        # variant was selected). Only fall back to product.price
+        # if no price was ever provided — defensive default.
         if not self.price:
-            self.price = self.product.price
+            self.price = self.variant.final_price if self.variant else self.product.price
         super().save(*args, **kwargs)

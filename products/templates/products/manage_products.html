@@ -99,8 +99,12 @@
                                     </td>
                                     <td>
                                         <a href="{% url 'products:edit_product' product.id %}"
-                                           class="btn btn-sm btn-outline-primary">
+                                        class="btn btn-sm btn-outline-primary me-1">
                                             Edit
+                                        </a>
+                                        <a href="{% url 'products:manage_variants' product.id %}"
+                                        class="btn btn-sm btn-outline-dark">
+                                            Variants
                                         </a>
                                     </td>
                                 </tr>

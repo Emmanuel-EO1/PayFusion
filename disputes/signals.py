@@ -79,21 +79,40 @@ def _restore_stock_for_order(order):
     Only called for resolution='refund_issued'.
     partial_refund does NOT restore stock — the customer
     keeps the item in that case.
+
+    Restores variant stock when the order item references a
+    variant, otherwise restores product-level stock.
     """
     from django.db import transaction
-    from products.models import Product
+    from products.models import Product, ProductVariant
 
     with transaction.atomic():
         for order_item in order.items.all():
-            product = Product.objects.select_for_update().get(
-                id=order_item.product_id
-            )
-            product.stock_quantity += order_item.quantity
-            product.save(update_fields=['stock_quantity', 'updated_at'])
 
-            logger.info(
-                f'Stock restored — product: {product.name} | '
-                f'quantity: +{order_item.quantity} | '
-                f'new stock: {product.stock_quantity} | '
-                f'order: {order.reference} (full refund)'
-            )
+            if order_item.variant_id:
+                variant = ProductVariant.objects.select_for_update().get(
+                    id=order_item.variant_id
+                )
+                variant.stock_quantity += order_item.quantity
+                variant.save(update_fields=['stock_quantity', 'updated_at'])
+
+                logger.info(
+                    f'Stock restored — variant: {variant.display_name} | '
+                    f'quantity: +{order_item.quantity} | '
+                    f'new stock: {variant.stock_quantity} | '
+                    f'order: {order.reference} (full refund)'
+                )
+
+            else:
+                product = Product.objects.select_for_update().get(
+                    id=order_item.product_id
+                )
+                product.stock_quantity += order_item.quantity
+                product.save(update_fields=['stock_quantity', 'updated_at'])
+
+                logger.info(
+                    f'Stock restored — product: {product.name} | '
+                    f'quantity: +{order_item.quantity} | '
+                    f'new stock: {product.stock_quantity} | '
+                    f'order: {order.reference} (full refund)'
+                )

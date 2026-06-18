@@ -3,8 +3,58 @@
 
 {% block content %}
 
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} alert-dismissible mt-3">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<h2>{{ product.name }}</h2>
+
+{% if product.has_variants %}
+    {% if product.display_price_range %}
+        <p class="fs-5">₦{{ product.display_price_range }}</p>
+    {% endif %}
+{% else %}
+    <p class="fs-5">₦{{ product.price|floatformat:2 }}</p>
+{% endif %}
+
+<p>{{ product.description }}</p>
+
 <form action="{% url 'cart:cart_add' product.id %}" method="post" class="mt-3">
     {% csrf_token %}
+
+    {% if product.has_variants %}
+        <div class="mb-3">
+            <label class="form-label">Select an option</label>
+            <select name="variant_id" class="form-select" style="max-width:300px;" required>
+                <option value="">Choose...</option>
+                {% for variant in product.variants.all %}
+                    {% if variant.is_active %}
+                        <option value="{{ variant.id }}"
+                            {% if not variant.is_in_stock %}disabled{% endif %}>
+                            {{ variant.display_name|cut:product.name }}
+                            — ₦{{ variant.final_price|floatformat:2 }}
+                            {% if not variant.is_in_stock %}
+                                (Out of stock)
+                            {% elif variant.is_low_stock %}
+                                (Only {{ variant.stock_quantity }} left)
+                            {% endif %}
+                        </option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+    {% else %}
+        {% if not product.is_in_stock %}
+            <p class="text-danger fw-bold">Out of stock</p>
+        {% elif product.is_low_stock %}
+            <p class="text-warning small">Only {{ product.stock_quantity }} left</p>
+        {% endif %}
+    {% endif %}
 
     <div class="d-flex align-items-center gap-2">
 
@@ -22,7 +72,8 @@
         <input type="hidden" name="override" value="False">
 
         <!-- Add to Cart Button -->
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" class="btn btn-primary"
+            {% if not product.has_variants and not product.is_in_stock %}disabled{% endif %}>
             Add to Cart
         </button>
 

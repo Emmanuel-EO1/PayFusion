@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{% if variant %}Edit Variant{% else %}Add Variant{% endif %} — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width:700px;">
+
+    <h2 class="mb-1">{% if variant %}Edit Variant{% else %}Add Variant{% endif %}</h2>
+    <p class="text-muted">{{ product.name }}</p>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} alert-dismissible">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card" style="border:1px solid #ddd;">
+        <div class="card-body p-4">
+
+            <form method="post">
+                {% csrf_token %}
+
+                <h5 class="mb-3">Attributes</h5>
+                <p class="text-muted small">
+                    Define what makes this variant different, e.g. Size: 42, Colour: Black.
+                    Fill in at least one row.
+                </p>
+
+                {% for row in attribute_rows %}
+                <div class="row mb-2">
+                    <div class="col-5">
+                        <input type="text" name="attr_name_{{ row.index }}" class="form-control"
+                               placeholder="e.g. Size" value="{{ row.name }}">
+                    </div>
+                    <div class="col-5">
+                        <input type="text" name="attr_value_{{ row.index }}" class="form-control"
+                               placeholder="e.g. 42" value="{{ row.value }}">
+                    </div>
+                </div>
+                {% endfor %}
+
+                <hr class="my-4">
+                <h5 class="mb-3">Pricing & Stock</h5>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">
+                            Price Adjustment (₦)
+                        </label>
+                        <input type="number" step="0.01" name="price_adjustment"
+                               class="form-control"
+                               value="{% if variant %}{{ variant.price_adjustment }}{% else %}0.00{% endif %}">
+                        <p class="text-muted small mt-1 mb-0">
+                            Added to the base price (₦{{ product.price|floatformat:2 }}).
+                            Use a negative number for a cheaper variant.
+                        </p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">SKU</label>
+                        <input type="text" name="sku" class="form-control"
+                               value="{% if variant %}{{ variant.sku|default:'' }}{% endif %}"
+                               placeholder="Optional">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Stock Quantity</label>
+                        <input type="number" min="0" name="stock_quantity"
+                               class="form-control"
+                               value="{% if variant %}{{ variant.stock_quantity }}{% else %}0{% endif %}"
+                               required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Low Stock Threshold</label>
+                        <input type="number" min="0" name="low_stock_threshold"
+                               class="form-control"
+                               value="{% if variant %}{{ variant.low_stock_threshold }}{% else %}5{% endif %}">
+                    </div>
+                </div>
+
+                <div class="form-check mb-4">
+                    <input type="checkbox" name="is_active" class="form-check-input" id="is_active"
+                           {% if not variant or variant.is_active %}checked{% endif %}>
+                    <label class="form-check-label" for="is_active">
+                        Active (visible to customers)
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-success">
+                    {% if variant %}Save Changes{% else %}Add Variant{% endif %}
+                </button>
+                <a href="{% url 'products:manage_variants' product.id %}" class="btn btn-outline-secondary">
+                    Cancel
+                </a>
+
+            </form>
+
+        </div>
+    </div>
+
+</div>
+{% endblock %}

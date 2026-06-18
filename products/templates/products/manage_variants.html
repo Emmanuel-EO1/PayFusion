@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Variants — {{ product.name }} — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-1">Variants</h2>
+    <p class="text-muted">{{ product.name }}</p>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} alert-dismissible">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <a href="{% url 'products:add_variant' product.id %}" class="btn btn-success mb-3">
+        Add Variant
+    </a>
+
+    <div class="card" style="border:1px solid #ddd;">
+        <div class="card-body p-4">
+
+            {% if not variants %}
+                <p class="text-muted">
+                    No variants yet. This product is currently sold as a
+                    simple product using its own stock_quantity field.
+                </p>
+            {% else %}
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Attributes</th>
+                                <th>SKU</th>
+                                <th>Price</th>
+                                <th>Stock</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for variant in variants %}
+                            <tr>
+                                <td>
+                                    {% for attr in variant.attributes.all %}
+                                        <span class="badge bg-light text-dark border me-1">
+                                            {{ attr.name }}: {{ attr.value }}
+                                        </span>
+                                    {% endfor %}
+                                </td>
+                                <td class="text-muted small">{{ variant.sku|default:"—" }}</td>
+                                <td>
+                                    ₦{{ variant.final_price|floatformat:2 }}
+                                    {% if variant.price_adjustment != 0 %}
+                                        <span class="text-muted small">
+                                            ({{ variant.price_adjustment|floatformat:2 }})
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if variant.stock_quantity == 0 %}
+                                        <span class="badge bg-danger">OUT OF STOCK</span>
+                                    {% elif variant.is_low_stock %}
+                                        <span class="badge bg-warning text-dark">
+                                            {{ variant.stock_quantity }} (LOW)
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-success">{{ variant.stock_quantity }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if variant.is_active %}
+                                        <span class="badge bg-primary">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{% url 'products:edit_variant' product.id variant.id %}"
+                                       class="btn btn-sm btn-outline-primary">
+                                        Edit
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{% url 'products:manage_products' %}" class="btn btn-outline-secondary">
+            Back to Products
+        </a>
+    </div>
+
+</div>
+{% endblock %}

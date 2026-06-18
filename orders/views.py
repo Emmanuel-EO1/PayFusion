@@ -45,6 +45,7 @@ def checkout(request):
 
     for item in cart:
         product = item['product']
+        variant = item.get('variant')
 
         if not product.business:
             logger.warning(
@@ -61,11 +62,14 @@ def checkout(request):
                 'total': Decimal('0.00'),
             }
 
-        price = Decimal(str(product.price))
+        # Price already reflects variant.final_price if a variant
+        # was selected — captured at add-to-cart time.
+        price = item['price']
         quantity = item['quantity']
 
         business_groups[business.id]['items'].append({
             'product': product,
+            'variant': variant,
             'price': price,
             'quantity': quantity,
         })
@@ -81,11 +85,19 @@ def checkout(request):
     for group in business_groups.values():
         for item in group['items']:
             product = item['product']
+            variant = item.get('variant')
             requested_qty = item['quantity']
 
-            if product.stock_quantity < requested_qty:
+            if variant:
+                available = variant.stock_quantity
+                label = variant.display_name
+            else:
+                available = product.stock_quantity
+                label = product.name
+
+            if available < requested_qty:
                 insufficient_items.append(
-                    f'{product.name} (only {product.stock_quantity} left, '
+                    f'{label} (only {available} left, '
                     f'you requested {requested_qty})'
                 )
 
@@ -134,6 +146,7 @@ def checkout(request):
                     OrderItem.objects.create(
                         order=order,
                         product=item['product'],
+                        variant=item.get('variant'),
                         price=item['price'],
                         quantity=item['quantity'],
                     )

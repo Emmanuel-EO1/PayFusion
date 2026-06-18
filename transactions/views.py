@@ -27,7 +27,7 @@ from transactions.services import (
 )
 from tenants.models import Business, WithdrawalRequest
 from orders.models import Order
-from products.models import Product
+from products.models import Product, ProductVariant
 
 logger = logging.getLogger('payfusion')
 User = get_user_model()
@@ -211,26 +211,48 @@ def _handle_charge_success(event_data, webhook_event):
             order.save(update_fields=['status', 'commission_rate_applied', 'commission_fee'])
 
             # Decrement stock for each item in this order.
-            # Locked per-product to prevent overselling when
-            # multiple simultaneous payments target the same product.
+            # Locked per-variant or per-product to prevent
+            # overselling when multiple simultaneous payments
+            # target the same item.
             for order_item in order.items.all():
-                product = Product.objects.select_for_update().get(
-                    id=order_item.product_id
-                )
 
-                new_stock = product.stock_quantity - order_item.quantity
-
-                if new_stock < 0:
-                    logger.warning(
-                        f'Oversold detected — product: {product.name} | '
-                        f'stock before: {product.stock_quantity} | '
-                        f'requested: {order_item.quantity} | '
-                        f'order: {order.reference}'
+                if order_item.variant_id:
+                    variant = ProductVariant.objects.select_for_update().get(
+                        id=order_item.variant_id
                     )
-                    new_stock = 0
 
-                product.stock_quantity = new_stock
-                product.save(update_fields=['stock_quantity', 'updated_at'])
+                    new_stock = variant.stock_quantity - order_item.quantity
+
+                    if new_stock < 0:
+                        logger.warning(
+                            f'Oversold detected — variant: {variant.display_name} | '
+                            f'stock before: {variant.stock_quantity} | '
+                            f'requested: {order_item.quantity} | '
+                            f'order: {order.reference}'
+                        )
+                        new_stock = 0
+
+                    variant.stock_quantity = new_stock
+                    variant.save(update_fields=['stock_quantity', 'updated_at'])
+
+                else:
+                    product = Product.objects.select_for_update().get(
+                        id=order_item.product_id
+                    )
+
+                    new_stock = product.stock_quantity - order_item.quantity
+
+                    if new_stock < 0:
+                        logger.warning(
+                            f'Oversold detected — product: {product.name} | '
+                            f'stock before: {product.stock_quantity} | '
+                            f'requested: {order_item.quantity} | '
+                            f'order: {order.reference}'
+                        )
+                        new_stock = 0
+
+                    product.stock_quantity = new_stock
+                    product.save(update_fields=['stock_quantity', 'updated_at'])
 
             # Debit Treasury for vendor's share regardless of
             # escrow setting — Treasury always allocates the
