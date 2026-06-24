@@ -1,6 +1,17 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Product, ProductCategory, ProductVariant, VariantAttribute
+from .models import Product, ProductCategory, ProductVariant, VariantAttribute, Tag
+
+
+@admin.register(Tag)
+class TagAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'product_count', 'created_at')
+    search_fields = ('name',)
+    prepopulated_fields = {'slug': ('name',)}
+
+    @admin.display(description='Products')
+    def product_count(self, obj):
+        return obj.products.count()
 
 
 @admin.register(ProductCategory)
@@ -80,6 +91,7 @@ class ProductAdmin(admin.ModelAdmin):
     fields = (
         'business',
         'category',
+        'tags',
         'name',
         'slug',
         'description',

@@ -74,6 +74,22 @@
                 </div>
 
                 <hr>
+                <h5 class="mb-3">Tags</h5>
+
+                <div class="mb-3">
+                    <label class="form-label">Tags</label>
+                    <input type="text" name="tags" class="form-control"
+                           value="{{ product.tags.all|join:', ' }}">
+                    <p class="text-muted small mt-1 mb-0">
+                        Separate tags with commas, e.g.
+                        <em>shoe accessory, summer, best seller</em>.
+                        Tags help customers discover related products.
+                        Hyphens and spaces are treated the same way —
+                        "shoe-accessory" and "shoe accessory" are identical.
+                    </p>
+                </div>
+
+                <hr>
                 <h5 class="mb-3">Inventory</h5>
 
                 <div class="row">

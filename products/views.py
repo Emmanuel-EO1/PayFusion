@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.views.decorators.http import require_POST
 
 from tenants.models import Business
-from .models import Product, ProductCategory, ProductVariant, VariantAttribute
+from .models import Product, ProductCategory, ProductVariant, VariantAttribute, Tag
 
 logger = logging.getLogger('payfusion')
 
@@ -42,6 +42,7 @@ def manage_products(request):
         return redirect('core:home')
 
     search_query = request.GET.get('q', '').strip()
+    tag_filter = request.GET.get('tag', '').strip()
 
     business_products = []
     for business in businesses:
@@ -52,6 +53,15 @@ def manage_products(request):
                 models_q_name_or_sku(search_query)
             )
 
+        if tag_filter:
+            from django.db.models import Q
+            normalised_tag = ' '.join(
+                tag_filter.lower().replace('-', ' ').split()
+            )
+            products = products.filter(
+                tags__name=normalised_tag
+            )
+
         business_products.append({
             'business': business,
             'products': products,
@@ -60,6 +70,7 @@ def manage_products(request):
     return render(request, 'products/manage_products.html', {
         'business_products': business_products,
         'search_query': search_query,
+        'tag_filter': tag_filter,
     })
 
 
@@ -153,6 +164,9 @@ def edit_product(request, product_id):
     if category_id:
         category = ProductCategory.objects.filter(id=category_id).first()
 
+    tags_raw = request.POST.get('tags', '').strip()
+    tag_names = [t.strip() for t in tags_raw.split(',') if t.strip()]
+
     if errors:
         for error in errors:
             messages.error(request, error)
@@ -172,6 +186,15 @@ def edit_product(request, product_id):
     product.category = category
     product.is_active = is_active
     product.save()
+
+    # Update tags — replace existing with the new submitted set.
+    # get_or_create_normalised ensures no near-duplicates are created.
+    new_tags = []
+    for tag_name in tag_names:
+        tag = Tag.get_or_create_normalised(tag_name)
+        if tag:
+            new_tags.append(tag)
+    product.tags.set(new_tags)
 
     if stock_quantity != previous_stock:
         logger.info(

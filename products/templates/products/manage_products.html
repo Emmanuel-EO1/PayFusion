@@ -24,9 +24,14 @@
                        value="{{ search_query }}">
             </div>
             <div class="col-auto">
+                <input type="text" name="tag" class="form-control"
+                       placeholder="Filter by tag"
+                       value="{{ tag_filter }}">
+            </div>
+            <div class="col-auto">
                 <button type="submit" class="btn btn-outline-primary">Search</button>
             </div>
-            {% if search_query %}
+            {% if search_query or tag_filter %}
             <div class="col-auto">
                 <a href="{% url 'products:manage_products' %}" class="btn btn-outline-secondary">
                     Clear
@@ -60,6 +65,7 @@
                                     <th>Product</th>
                                     <th>SKU</th>
                                     <th>Category</th>
+                                    <th>Tags</th>
                                     <th>Price</th>
                                     <th>Stock</th>
                                     <th>Status</th>
@@ -75,6 +81,15 @@
                                     </td>
                                     <td class="text-muted small">
                                         {{ product.category.name|default:"Uncategorised" }}
+                                    </td>
+                                    <td>
+                                        {% for tag in product.tags.all %}
+                                            <span class="badge bg-light text-dark border me-1">
+                                                {{ tag.name }}
+                                            </span>
+                                        {% empty %}
+                                            <span class="text-muted small">—</span>
+                                        {% endfor %}
                                     </td>
                                     <td>₦{{ product.price|floatformat:2 }}</td>
                                     <td>
@@ -99,12 +114,8 @@
                                     </td>
                                     <td>
                                         <a href="{% url 'products:edit_product' product.id %}"
-                                        class="btn btn-sm btn-outline-primary me-1">
+                                           class="btn btn-sm btn-outline-primary">
                                             Edit
-                                        </a>
-                                        <a href="{% url 'products:manage_variants' product.id %}"
-                                        class="btn btn-sm btn-outline-dark">
-                                            Variants
                                         </a>
                                     </td>
                                 </tr>

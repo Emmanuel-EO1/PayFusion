@@ -38,6 +38,72 @@ class ProductCategory(models.Model):
         super().save(*args, **kwargs)
 
 
+# ============================================================
+# TAG MODEL (Phase 10 Step 3)
+#
+# A shared vocabulary of short labels vendors can attach to
+# their products. A separate model (rather than free text on
+# Product) so every vendor tags into the same consistent set
+# of names — "shoe-accessory" always means the same thing,
+# rather than three different vendors typing three different
+# variations of the same idea.
+#
+# Immediate use: vendor-side organisation and filtering in
+# their own product management view.
+# Future use: groundwork for Phase 15's combination engine,
+# where tags become one signal (alongside AI embeddings) for
+# matching products customers combine together.
+# ============================================================
+class Tag(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    slug = models.SlugField(max_length=50, unique=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        # Normalise before saving so near-identical tags collapse
+        # into one — "Shoe-Accessory", "shoe accessory", and
+        # "shoe-accessory " all become "shoe accessory".
+        # Hyphens are treated as equivalent to spaces, since in
+        # short tag labels they almost always mean the same thing
+        # (e.g. "shoe-accessory" == "shoe accessory").
+        # NOTE: this only catches exact/near-exact duplicates.
+        # Genuinely different-but-related tags (e.g. "boot accessory"
+        # vs "shoe accessory") are NOT unified by this — that
+        # semantic relationship is intentionally deferred to
+        # Phase 15's AI embedding layer, which can recognise
+        # conceptual closeness that string normalisation cannot.
+        self.name = ' '.join(
+            self.name.strip().lower().replace('-', ' ').split()
+        )
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_or_create_normalised(cls, raw_name):
+        """
+        Looks up or creates a Tag using the same normalisation
+        rule as save(), so callers never accidentally create a
+        near-duplicate by checking against the raw, un-normalised
+        input. Use this instead of Tag.objects.get_or_create()
+        directly when creating tags from vendor-typed input.
+        """
+        normalised = ' '.join(
+            raw_name.strip().lower().replace('-', ' ').split()
+        )
+        if not normalised:
+            return None
+        tag, _ = cls.objects.get_or_create(name=normalised)
+        return tag
+
+
 class Product(models.Model):
 
     business = models.ForeignKey(
@@ -50,6 +116,15 @@ class Product(models.Model):
         ProductCategory,
         on_delete=models.SET_NULL,
         null=True,
+        blank=True,
+        related_name='products'
+    )
+
+    # Many-to-many: a product can have multiple tags, and a tag
+    # can apply to many products. blank=True since tagging is
+    # entirely optional — most products may never be tagged.
+    tags = models.ManyToManyField(
+        Tag,
         blank=True,
         related_name='products'
     )
@@ -68,9 +143,6 @@ class Product(models.Model):
         help_text='Optional stock keeping unit code, e.g. NIKE-AF1-WHT-42.'
     )
 
-    # Stock for SIMPLE products (no variants).
-    # When has_variants is True, this field is ignored —
-    # each ProductVariant tracks its own stock instead.
     stock_quantity = models.PositiveIntegerField(
         default=0,
         help_text='Units currently available. Ignored if this product has variants.'
@@ -101,47 +173,26 @@ class Product(models.Model):
 
     @property
     def has_variants(self):
-        """True if this product has at least one variant defined."""
         return self.variants.exists()
 
     @property
     def is_low_stock(self):
-        """
-        True when stock has fallen to or below the threshold.
-        For products with variants, this checks the product-level
-        fields directly — use variant.is_low_stock for per-variant
-        status instead.
-        """
         return self.stock_quantity <= self.low_stock_threshold
 
     @property
     def is_in_stock(self):
-        """
-        True when at least one unit is available.
-        For products with variants, True if ANY variant is in stock.
-        """
         if self.has_variants:
             return self.variants.filter(stock_quantity__gt=0).exists()
         return self.stock_quantity > 0
 
     @property
     def total_stock(self):
-        """
-        Combined stock across all variants, or the product's own
-        stock_quantity if it has no variants. Useful for displaying
-        a single stock figure regardless of whether variants exist.
-        """
         if self.has_variants:
             return sum(v.stock_quantity for v in self.variants.all())
         return self.stock_quantity
 
     @property
     def display_price_range(self):
-        """
-        Returns the price range across variants if variants exist
-        and have differing adjusted prices, otherwise the base price.
-        Used on product listing pages to show e.g. "₦5,000 - ₦5,500".
-        """
         if not self.has_variants:
             return None
 
@@ -155,24 +206,6 @@ class Product(models.Model):
         return f'{low:.2f} - {high:.2f}'
 
 
-# ============================================================
-# PRODUCT VARIANT MODEL
-#
-# Represents one purchasable option under a parent Product —
-# e.g. a specific size/colour combination. Each variant has
-# its own stock and an optional price adjustment relative to
-# the parent product's base price.
-#
-# Attributes (size, colour, material, etc.) are NOT fixed
-# columns on this model — they are stored flexibly via the
-# related VariantAttribute model below. This means a vendor
-# selling clothing can use Size/Colour, while a vendor selling
-# electronics can use Storage/Colour, without any schema change.
-#
-# A product with zero ProductVariant rows is a "simple" product
-# and uses Product.stock_quantity directly (Phase 10 Step 1
-# behaviour, unchanged).
-# ============================================================
 class ProductVariant(models.Model):
 
     product = models.ForeignKey(
@@ -181,10 +214,6 @@ class ProductVariant(models.Model):
         related_name='variants'
     )
 
-    # Optional unique code for this specific variant.
-    # Same null=True pattern as Product.sku — many variants
-    # may have no SKU, and PostgreSQL exempts NULL from the
-    # uniqueness check so multiple blank SKUs don't collide.
     sku = models.CharField(
         max_length=100,
         unique=True,
@@ -193,11 +222,6 @@ class ProductVariant(models.Model):
         help_text='Optional variant-specific SKU, e.g. NIKE-AF1-WHT-42.'
     )
 
-    # Added to or subtracted from the parent product's base price.
-    # Example: base price ₦5,000, black colourway price_adjustment
-    # of ₦500 means this variant sells for ₦5,500.
-    # Can be negative for a cheaper variant (e.g. a smaller size
-    # priced lower than the base).
     price_adjustment = models.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -237,7 +261,6 @@ class ProductVariant(models.Model):
 
     @property
     def final_price(self):
-        """The actual sellable price for this variant."""
         return self.product.price + self.price_adjustment
 
     @property
@@ -250,11 +273,6 @@ class ProductVariant(models.Model):
 
     @property
     def display_name(self):
-        """
-        Human-readable label combining product name and attributes.
-        e.g. "Nike Air Force 1 — Size: 42, Colour: Black"
-        Used in cart, checkout, and order history displays.
-        """
         attrs = ', '.join(
             f'{a.name}: {a.value}' for a in self.attributes.all()
         )
@@ -263,18 +281,6 @@ class ProductVariant(models.Model):
         return self.product.name
 
 
-# ============================================================
-# VARIANT ATTRIBUTE MODEL
-#
-# Flexible key-value attribute for a ProductVariant.
-# A variant can have multiple attributes (e.g. Size AND Colour).
-# This design lets any vendor define whatever attribute types
-# fit their product category without requiring schema changes.
-#
-# Example rows for one variant:
-#   (variant=X, name="Size",   value="42")
-#   (variant=X, name="Colour", value="Black")
-# ============================================================
 class VariantAttribute(models.Model):
 
     variant = models.ForeignKey(
@@ -297,8 +303,6 @@ class VariantAttribute(models.Model):
         indexes = [
             models.Index(fields=['variant'], name='variant_attr_idx'),
         ]
-        # Prevents the same attribute name being set twice
-        # on the same variant (e.g. two "Size" rows for one variant).
         constraints = [
             models.UniqueConstraint(
                 fields=['variant', 'name'],
