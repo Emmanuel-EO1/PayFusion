@@ -148,3 +148,97 @@ def payout_history(request):
         'withdrawals': withdrawals,
         'businesses': businesses,
     })
+
+
+# ============================================================
+# VENDOR — BUSINESS ANALYTICS
+#
+# Revenue and order charts for a specific business.
+# Separate page from the dashboard to avoid loading heavy
+# aggregation data on every dashboard page load.
+# ============================================================
+@login_required
+def business_analytics(request, business_id):
+    business = get_object_or_404(
+        Business,
+        id=business_id,
+        owner=request.user,
+    )
+
+    from django.db.models import Sum, Count
+    from django.db.models.functions import TruncDay
+    from django.utils import timezone
+    from orders.models import OrderItem
+
+    thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+
+    # Daily revenue — last 30 days
+    daily_revenue = (
+        business.orders
+        .filter(status='paid', created_at__gte=thirty_days_ago)
+        .annotate(day=TruncDay('created_at'))
+        .values('day')
+        .annotate(revenue=Sum('total_amount'))
+        .order_by('day')
+    )
+
+    # Daily order count — last 30 days
+    daily_orders = (
+        business.orders
+        .filter(status='paid', created_at__gte=thirty_days_ago)
+        .annotate(day=TruncDay('created_at'))
+        .values('day')
+        .annotate(count=Count('id'))
+        .order_by('day')
+    )
+
+    # Top 10 products by revenue
+    top_by_revenue = (
+        OrderItem.objects
+        .filter(order__business=business, order__status='paid')
+        .values('product__name')
+        .annotate(revenue=Sum('price'))
+        .order_by('-revenue')[:10]
+    )
+
+    # Top 10 products by units sold
+    top_by_units = (
+        OrderItem.objects
+        .filter(order__business=business, order__status='paid')
+        .values('product__name')
+        .annotate(units=Sum('quantity'))
+        .order_by('-units')[:10]
+    )
+
+    # Serialise querysets to JSON-safe lists for Chart.js
+    import json
+    from decimal import Decimal
+
+    def decimal_default(obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        raise TypeError
+
+    revenue_labels = [entry['day'].strftime('%b %d') for entry in daily_revenue]
+    revenue_data   = [float(entry['revenue']) for entry in daily_revenue]
+
+    order_labels   = [entry['day'].strftime('%b %d') for entry in daily_orders]
+    order_data     = [entry['count'] for entry in daily_orders]
+
+    rev_product_labels = [entry['product__name'] for entry in top_by_revenue]
+    rev_product_data   = [float(entry['revenue']) for entry in top_by_revenue]
+
+    unit_product_labels = [entry['product__name'] for entry in top_by_units]
+    unit_product_data   = [entry['units'] for entry in top_by_units]
+
+    return render(request, 'users/business_analytics.html', {
+        'business': business,
+        'revenue_labels':       json.dumps(revenue_labels),
+        'revenue_data':         json.dumps(revenue_data),
+        'order_labels':         json.dumps(order_labels),
+        'order_data':           json.dumps(order_data),
+        'rev_product_labels':   json.dumps(rev_product_labels),
+        'rev_product_data':     json.dumps(rev_product_data),
+        'unit_product_labels':  json.dumps(unit_product_labels),
+        'unit_product_data':    json.dumps(unit_product_data),
+    })

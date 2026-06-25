@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Analytics — {{ business.name }} — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+
+    <h2 class="mb-1">Analytics</h2>
+    <p class="text-muted mb-4">{{ business.name }} — last 30 days</p>
+
+    <div class="row mb-5">
+
+        {# Revenue Chart #}
+        <div class="col-md-6 mb-4">
+            <div class="card" style="border:1px solid #ddd;">
+                <div class="card-body p-4">
+                    <h6 class="mb-3">Daily Revenue (₦)</h6>
+                    <canvas id="revenueChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        {# Order Volume Chart #}
+        <div class="col-md-6 mb-4">
+            <div class="card" style="border:1px solid #ddd;">
+                <div class="card-body p-4">
+                    <h6 class="mb-3">Daily Orders</h6>
+                    <canvas id="ordersChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        {# Top Products by Revenue #}
+        <div class="col-md-6 mb-4">
+            <div class="card" style="border:1px solid #ddd;">
+                <div class="card-body p-4">
+                    <h6 class="mb-3">Top Products by Revenue</h6>
+                    <canvas id="revProductChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        {# Top Products by Units Sold #}
+        <div class="col-md-6 mb-4">
+            <div class="card" style="border:1px solid #ddd;">
+                <div class="card-body p-4">
+                    <h6 class="mb-3">Top Products by Units Sold</h6>
+                    <canvas id="unitProductChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <a href="{% url 'users:dashboard' %}" class="btn btn-outline-secondary">
+        Back to Dashboard
+    </a>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    const revenueLabels      = {{ revenue_labels|safe }};
+    const revenueData        = {{ revenue_data|safe }};
+    const orderLabels        = {{ order_labels|safe }};
+    const orderData          = {{ order_data|safe }};
+    const revProductLabels   = {{ rev_product_labels|safe }};
+    const revProductData     = {{ rev_product_data|safe }};
+    const unitProductLabels  = {{ unit_product_labels|safe }};
+    const unitProductData    = {{ unit_product_data|safe }};
+
+    // Revenue line chart
+    new Chart(document.getElementById('revenueChart'), {
+        type: 'line',
+        data: {
+            labels: revenueLabels,
+            datasets: [{
+                label: 'Revenue (₦)',
+                data: revenueData,
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16,185,129,0.1)',
+                fill: true,
+                tension: 0.3,
+            }]
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+
+    // Order volume bar chart
+    new Chart(document.getElementById('ordersChart'), {
+        type: 'bar',
+        data: {
+            labels: orderLabels,
+            datasets: [{
+                label: 'Orders',
+                data: orderData,
+                backgroundColor: '#3b82f6',
+            }]
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+
+    // Top products by revenue — horizontal bar
+    new Chart(document.getElementById('revProductChart'), {
+        type: 'bar',
+        data: {
+            labels: revProductLabels,
+            datasets: [{
+                label: 'Revenue (₦)',
+                data: revProductData,
+                backgroundColor: '#8b5cf6',
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            plugins: { legend: { display: false } },
+            scales: { x: { beginAtZero: true } }
+        }
+    });
+
+    // Top products by units sold — horizontal bar
+    new Chart(document.getElementById('unitProductChart'), {
+        type: 'bar',
+        data: {
+            labels: unitProductLabels,
+            datasets: [{
+                label: 'Units Sold',
+                data: unitProductData,
+                backgroundColor: '#f59e0b',
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            plugins: { legend: { display: false } },
+            scales: { x: { beginAtZero: true } }
+        }
+    });
+</script>
+{% endblock %}
