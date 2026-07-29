@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ business.name }} — PayFusion{% endblock %}
+
+{% block content %}
+
+<style>
+    .storefront-header {
+        background: {{ storefront.accent_colour }};
+        padding: 40px 0;
+        margin-bottom: 32px;
+    }
+    .btn-storefront {
+        background: {{ storefront.accent_colour }};
+        color: white;
+        border: none;
+    }
+    .btn-storefront:hover {
+        opacity: 0.9;
+        color: white;
+    }
+</style>
+
+<div class="storefront-header">
+    {% if storefront.has_banner %}
+        <img src="{{ storefront.banner_image.url }}"
+             alt="{{ business.name }} banner"
+             style="width:100%; max-height:300px; object-fit:cover; display:block; margin-bottom:16px;">
+    {% endif %}
+    <div class="container text-white">
+        <h1 class="mb-1">{{ business.name }}</h1>
+        <p class="mb-0" style="opacity:0.85;">{{ storefront.display_tagline }}</p>
+    </div>
+</div>
+
+<div class="container">
+
+    {% if featured %}
+    <h4 class="mb-3">Featured Products</h4>
+    <div class="row mb-5">
+        {% for product in featured %}
+        <div class="col-md-4 mb-3">
+            <div class="card h-100" style="border:1px solid #ddd;">
+                <div class="card-body p-3">
+                    <h6>{{ product.name }}</h6>
+                    <p class="text-muted small mb-1">
+                        {% if product.has_variants %}
+                            From &#8358;{{ product.display_price_range }}
+                        {% else %}
+                            &#8358;{{ product.price|floatformat:2 }}
+                        {% endif %}
+                    </p>
+                    {% for tag in product.tags.all %}
+                        <span class="badge bg-light text-dark border me-1 small">
+                            {{ tag.name }}
+                        </span>
+                    {% endfor %}
+                    <div class="mt-2">
+                        <a href="{% url 'products:product_detail' product.id %}"
+                           class="btn btn-sm btn-storefront">
+                            View Product
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <h4 class="mb-3">All Products</h4>
+
+    {% if products %}
+    <div class="row">
+        {% for product in products %}
+        <div class="col-md-3 mb-4">
+            <div class="card h-100" style="border:1px solid #ddd;">
+                <div class="card-body p-3">
+                    <h6>{{ product.name }}</h6>
+                    <p class="text-muted small mb-1">
+                        {% if product.has_variants %}
+                            From &#8358;{{ product.display_price_range }}
+                        {% else %}
+                            &#8358;{{ product.price|floatformat:2 }}
+                        {% endif %}
+                    </p>
+                    {% if not product.is_in_stock %}
+                        <span class="badge bg-danger small">Out of Stock</span>
+                    {% elif product.is_low_stock and not product.has_variants %}
+                        <span class="badge bg-warning text-dark small">
+                            Only {{ product.stock_quantity }} left
+                        </span>
+                    {% endif %}
+                    {% for tag in product.tags.all %}
+                        <span class="badge bg-light text-dark border me-1 small">
+                            {{ tag.name }}
+                        </span>
+                    {% endfor %}
+                    <div class="mt-2">
+                        <a href="{% url 'products:product_detail' product.id %}"
+                           class="btn btn-sm btn-storefront">
+                            View Product
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+        <p class="text-muted">No products listed yet.</p>
+    {% endif %}
+
+</div>
+{% endblock %}

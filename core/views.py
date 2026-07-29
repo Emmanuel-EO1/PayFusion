@@ -1,7 +1,7 @@
 from collections import defaultdict
 from decimal import Decimal
 
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import Sum, Count
 from django.db.models.functions import TruncMonth
@@ -12,6 +12,37 @@ from orders.models import Order
 
 def home(request):
     return render(request, 'core/home.html')
+
+
+# ============================================================
+# PUBLIC VENDOR STOREFRONT
+#
+# Accessible to anyone — no login required.
+# Shows the vendor's banner, tagline, featured products,
+# and full active product catalogue.
+# ============================================================
+def vendor_storefront(request, slug):
+    from tenants.models import Business
+    from products.models import Product
+
+    business = get_object_or_404(Business, slug=slug)
+    storefront = business.storefront
+
+    featured = storefront.featured_products.filter(
+        is_active=True
+    ).prefetch_related('tags')[:6]
+
+    all_products = Product.objects.filter(
+        business=business,
+        is_active=True,
+    ).prefetch_related('tags', 'variants').order_by('-created_at')
+
+    return render(request, 'core/vendor_storefront.html', {
+        'business': business,
+        'storefront': storefront,
+        'featured': featured,
+        'products': all_products,
+    })
 
 
 # ============================================================

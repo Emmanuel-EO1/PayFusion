@@ -6,8 +6,9 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.views.decorators.http import require_POST
+from django.db.models import Q
 
-from tenants.models import Business
+from tenants.models import Business, VendorStorefront
 from .models import Product, ProductCategory, ProductVariant, VariantAttribute, Tag
 
 logger = logging.getLogger('payfusion')
@@ -23,20 +24,11 @@ def product_detail(request, id):
     return render(request, 'products/product_detail.html', {'product': product})
 
 
-# ============================================================
-# VENDOR — PRODUCT MANAGEMENT (list)
-#
-# Shows every product across all businesses owned by the
-# logged-in vendor, grouped by business. Supports searching
-# by name or SKU. This is the vendor-facing equivalent of
-# Django admin's product list — restricted to their own
-# products only.
-# ============================================================
 @login_required
 def manage_products(request):
     businesses = Business.objects.filter(
         owner=request.user
-    ).prefetch_related('products__category')
+    ).prefetch_related('products__category', 'products__tags')
 
     if not businesses.exists():
         return redirect('core:home')
@@ -46,21 +38,18 @@ def manage_products(request):
 
     business_products = []
     for business in businesses:
-        products = business.products.all()
+        products = business.products.prefetch_related('tags').all()
 
         if search_query:
             products = products.filter(
-                models_q_name_or_sku(search_query)
+                Q(name__icontains=search_query) | Q(sku__icontains=search_query)
             )
 
         if tag_filter:
-            from django.db.models import Q
             normalised_tag = ' '.join(
                 tag_filter.lower().replace('-', ' ').split()
             )
-            products = products.filter(
-                tags__name=normalised_tag
-            )
+            products = products.filter(tags__name=normalised_tag)
 
         business_products.append({
             'business': business,
@@ -74,29 +63,6 @@ def manage_products(request):
     })
 
 
-def models_q_name_or_sku(query):
-    """
-    Small helper building a Q object that matches a product's
-    name or sku against the search query, case-insensitive.
-    Kept as a function rather than inline Q() chains repeated
-    in multiple places, since search may extend to more fields
-    later (e.g. description) without touching the view logic.
-    """
-    from django.db.models import Q
-    return Q(name__icontains=query) | Q(sku__icontains=query)
-
-
-# ============================================================
-# VENDOR — EDIT / RESTOCK PRODUCT
-#
-# GET  → show edit form pre-filled with current values
-# POST → validate and save changes
-#
-# This is the only place a vendor can update stock_quantity.
-# Restocking is simply increasing this value through the form —
-# no separate restock-specific endpoint, since it's the same
-# field regardless of direction (increase or decrease).
-# ============================================================
 @login_required
 def edit_product(request, product_id):
     product = get_object_or_404(
@@ -113,7 +79,6 @@ def edit_product(request, product_id):
             'categories': categories,
         })
 
-    # POST — process form submission
     name = request.POST.get('name', '').strip()
     description = request.POST.get('description', '').strip()
     price_raw = request.POST.get('price', '').strip()
@@ -122,6 +87,8 @@ def edit_product(request, product_id):
     low_stock_threshold_raw = request.POST.get('low_stock_threshold', '').strip()
     category_id = request.POST.get('category', '').strip()
     is_active = request.POST.get('is_active') == 'on'
+    tags_raw = request.POST.get('tags', '').strip()
+    tag_names = [t.strip() for t in tags_raw.split(',') if t.strip()]
 
     errors = []
 
@@ -152,20 +119,14 @@ def edit_product(request, product_id):
         errors.append('Please enter a valid low stock threshold.')
         low_stock_threshold = product.low_stock_threshold
 
-    # SKU uniqueness check — excluding this product itself
     if sku:
-        sku_taken = Product.objects.filter(
-            sku=sku
-        ).exclude(id=product.id).exists()
+        sku_taken = Product.objects.filter(sku=sku).exclude(id=product.id).exists()
         if sku_taken:
             errors.append(f'SKU "{sku}" is already used by another product.')
 
     category = None
     if category_id:
         category = ProductCategory.objects.filter(id=category_id).first()
-
-    tags_raw = request.POST.get('tags', '').strip()
-    tag_names = [t.strip() for t in tags_raw.split(',') if t.strip()]
 
     if errors:
         for error in errors:
@@ -187,8 +148,6 @@ def edit_product(request, product_id):
     product.is_active = is_active
     product.save()
 
-    # Update tags — replace existing with the new submitted set.
-    # get_or_create_normalised ensures no near-duplicates are created.
     new_tags = []
     for tag_name in tag_names:
         tag = Tag.get_or_create_normalised(tag_name)
@@ -207,13 +166,6 @@ def edit_product(request, product_id):
     return redirect('products:manage_products')
 
 
-# ============================================================
-# VENDOR — VARIANT LIST
-#
-# Shows all variants for one product, with stock and price
-# adjustment visible at a glance. Entry point for adding new
-# variants or editing existing ones.
-# ============================================================
 @login_required
 def manage_variants(request, product_id):
     product = get_object_or_404(
@@ -221,32 +173,17 @@ def manage_variants(request, product_id):
         id=product_id,
         business__owner=request.user,
     )
-
     variants = product.variants.prefetch_related('attributes').all()
-
     return render(request, 'products/manage_variants.html', {
         'product': product,
         'variants': variants,
     })
 
 
-# Number of attribute name/value row pairs the form supports.
-# Comfortably covers Size + Colour + Material + one more
-# without needing a JavaScript-driven dynamic formset.
 ATTRIBUTE_ROW_COUNT = 4
 
 
 def _build_attribute_rows(existing_attributes=None):
-    """
-    Builds a list of simple objects for the variant_form template,
-    each with .index, .name, .value — one per form row.
-    Pre-fills name/value from existing_attributes when editing,
-    leaves them blank for a fresh add form.
-    Returns exactly ATTRIBUTE_ROW_COUNT rows regardless of how
-    many existing attributes there are (extra existing attributes
-    beyond the row count are simply not shown — not expected in
-    practice since variants are created through this same form).
-    """
     existing_attributes = existing_attributes or []
 
     class Row:
@@ -262,18 +199,10 @@ def _build_attribute_rows(existing_attributes=None):
             rows.append(Row(i, attr.name, attr.value))
         else:
             rows.append(Row(i))
-
     return rows
 
 
 def _extract_attributes_from_post(post_data):
-    """
-    Reads attribute name/value pairs from POST data using the
-    fixed row pattern attr_name_1/attr_value_1 .. attr_name_4/attr_value_4.
-    Rows where either field is blank are skipped — a vendor doesn't
-    have to fill in all four rows, just the ones they need.
-    Returns a list of (name, value) tuples.
-    """
     pairs = []
     for i in range(1, ATTRIBUTE_ROW_COUNT + 1):
         name = post_data.get(f'attr_name_{i}', '').strip()
@@ -283,12 +212,6 @@ def _extract_attributes_from_post(post_data):
     return pairs
 
 
-# ============================================================
-# VENDOR — ADD VARIANT
-#
-# GET  → blank form with empty attribute rows
-# POST → validate, create ProductVariant + its VariantAttribute rows
-# ============================================================
 @login_required
 def add_variant(request, product_id):
     product = get_object_or_404(
@@ -335,8 +258,7 @@ def add_variant(request, product_id):
         low_stock_threshold = 5
 
     if sku:
-        sku_taken = ProductVariant.objects.filter(sku=sku).exists()
-        if sku_taken:
+        if ProductVariant.objects.filter(sku=sku).exists():
             errors.append(f'SKU "{sku}" is already used by another variant.')
 
     attribute_pairs = _extract_attributes_from_post(request.POST)
@@ -362,11 +284,7 @@ def add_variant(request, product_id):
     )
 
     for name, value in attribute_pairs:
-        VariantAttribute.objects.create(
-            variant=variant,
-            name=name,
-            value=value,
-        )
+        VariantAttribute.objects.create(variant=variant, name=name, value=value)
 
     logger.info(
         f'Variant created — product: {product.name} | '
@@ -377,12 +295,6 @@ def add_variant(request, product_id):
     return redirect('products:manage_variants', product_id=product.id)
 
 
-# ============================================================
-# VENDOR — EDIT VARIANT
-#
-# GET  → form pre-filled with current values and attributes
-# POST → validate and save changes, replacing attribute rows
-# ============================================================
 @login_required
 def edit_variant(request, product_id, variant_id):
     product = get_object_or_404(
@@ -390,18 +302,13 @@ def edit_variant(request, product_id, variant_id):
         id=product_id,
         business__owner=request.user,
     )
-    variant = get_object_or_404(
-        ProductVariant,
-        id=variant_id,
-        product=product,
-    )
+    variant = get_object_or_404(ProductVariant, id=variant_id, product=product)
 
     if request.method == 'GET':
-        existing_attributes = list(variant.attributes.all())
         return render(request, 'products/variant_form.html', {
             'product': product,
             'variant': variant,
-            'attribute_rows': _build_attribute_rows(existing_attributes),
+            'attribute_rows': _build_attribute_rows(list(variant.attributes.all())),
         })
 
     sku = request.POST.get('sku', '').strip()
@@ -435,10 +342,7 @@ def edit_variant(request, product_id, variant_id):
         low_stock_threshold = variant.low_stock_threshold
 
     if sku:
-        sku_taken = ProductVariant.objects.filter(
-            sku=sku
-        ).exclude(id=variant.id).exists()
-        if sku_taken:
+        if ProductVariant.objects.filter(sku=sku).exclude(id=variant.id).exists():
             errors.append(f'SKU "{sku}" is already used by another variant.')
 
     attribute_pairs = _extract_attributes_from_post(request.POST)
@@ -455,7 +359,6 @@ def edit_variant(request, product_id, variant_id):
         })
 
     previous_stock = variant.stock_quantity
-
     variant.sku = sku or None
     variant.price_adjustment = price_adjustment
     variant.stock_quantity = stock_quantity
@@ -463,16 +366,9 @@ def edit_variant(request, product_id, variant_id):
     variant.is_active = is_active
     variant.save()
 
-    # Replace attribute rows entirely — simplest correct approach
-    # given the fixed-row form design. Avoids reconciling partial
-    # updates against existing rows.
     variant.attributes.all().delete()
     for name, value in attribute_pairs:
-        VariantAttribute.objects.create(
-            variant=variant,
-            name=name,
-            value=value,
-        )
+        VariantAttribute.objects.create(variant=variant, name=name, value=value)
 
     if stock_quantity != previous_stock:
         logger.info(
@@ -484,16 +380,6 @@ def edit_variant(request, product_id, variant_id):
     return redirect('products:manage_variants', product_id=product.id)
 
 
-# ============================================================
-# VENDOR — BULK GENERATE VARIANTS (Step 2B)
-#
-# Vendor defines up to ATTRIBUTE_ROW_COUNT attribute types,
-# each with a comma-separated list of possible values.
-# System generates every combination as a ProductVariant,
-# skipping any combination that already exists for this product
-# (safe to re-run — e.g. adding a new colour later only creates
-# the new combinations, leaves existing stock/price untouched).
-# ============================================================
 @login_required
 def bulk_generate_variants(request, product_id):
     product = get_object_or_404(
@@ -508,16 +394,12 @@ def bulk_generate_variants(request, product_id):
             'attribute_rows': range(1, ATTRIBUTE_ROW_COUNT + 1),
         })
 
-    # Parse attribute_name_N / attribute_values_N pairs.
-    # Each value list is comma-separated, e.g. "Black, White, Red"
     attribute_sets = []
     for i in range(1, ATTRIBUTE_ROW_COUNT + 1):
         name = request.POST.get(f'attribute_name_{i}', '').strip()
         values_raw = request.POST.get(f'attribute_values_{i}', '').strip()
-
         if not name or not values_raw:
             continue
-
         values = [v.strip() for v in values_raw.split(',') if v.strip()]
         if values:
             attribute_sets.append((name, values))
@@ -525,33 +407,20 @@ def bulk_generate_variants(request, product_id):
     if not attribute_sets:
         messages.error(
             request,
-            'Please provide at least one attribute with values, '
-            'e.g. Size: 40, 41, 42.'
+            'Please provide at least one attribute with values, e.g. Size: 40, 41, 42.'
         )
         return render(request, 'products/bulk_generate_variants.html', {
             'product': product,
             'attribute_rows': range(1, ATTRIBUTE_ROW_COUNT + 1),
         })
 
-    # Build every combination across all attribute sets.
-    # itertools.product handles any number of attribute types
-    # (1 to ATTRIBUTE_ROW_COUNT) without special-casing each count.
-    # Example with Size:[40,41] and Colour:[Black,White]:
-    #   itertools.product([40,41], [Black,White]) yields:
-    #   (40,Black), (40,White), (41,Black), (41,White)
     attribute_names = [name for name, _ in attribute_sets]
     value_lists = [values for _, values in attribute_sets]
-
     combinations = list(itertools.product(*value_lists))
 
-    # Build a lookup of existing variant combinations for this
-    # product, so we can skip any that already exist rather than
-    # creating duplicates.
     existing_combinations = set()
     for variant in product.variants.prefetch_related('attributes').all():
-        combo = tuple(
-            sorted((a.name, a.value) for a in variant.attributes.all())
-        )
+        combo = tuple(sorted((a.name, a.value) for a in variant.attributes.all()))
         existing_combinations.add(combo)
 
     created_count = 0
@@ -571,49 +440,34 @@ def bulk_generate_variants(request, product_id):
             price_adjustment=Decimal('0.00'),
             is_active=True,
         )
-
         for name, value in combo_pairs:
-            VariantAttribute.objects.create(
-                variant=variant,
-                name=name,
-                value=value,
-            )
+            VariantAttribute.objects.create(variant=variant, name=name, value=value)
 
         existing_combinations.add(combo_key)
         created_count += 1
 
     logger.info(
         f'Bulk variant generation — product: {product.name} | '
-        f'created: {created_count} | skipped (already existed): '
-        f'{skipped_count} | by: {request.user.email}'
+        f'created: {created_count} | skipped: {skipped_count} | '
+        f'by: {request.user.email}'
     )
 
     if created_count:
         messages.success(
             request,
             f'{created_count} variant(s) created. '
-            f'{skipped_count} combination(s) already existed and were skipped. '
-            f'Set stock and pricing for the new variants below.'
+            f'{skipped_count} already existed and were skipped. '
+            f'Set stock and pricing below.'
         )
     else:
         messages.info(
             request,
-            f'No new variants created — all {skipped_count} combination(s) '
-            f'already existed.'
+            f'No new variants created — all {skipped_count} combination(s) already existed.'
         )
 
     return redirect('products:bulk_edit_variants', product_id=product.id)
 
 
-# ============================================================
-# VENDOR — BULK EDIT VARIANTS (Step 2B)
-#
-# Shows every variant for this product (regardless of whether
-# it was created via the single-variant form or the bulk
-# generator) in one editable table. Vendor fills in stock and
-# price adjustment for many variants and saves them all in one
-# submission, instead of opening each variant's edit page individually.
-# ============================================================
 @login_required
 def bulk_edit_variants(request, product_id):
     product = get_object_or_404(
@@ -621,10 +475,7 @@ def bulk_edit_variants(request, product_id):
         id=product_id,
         business__owner=request.user,
     )
-
-    variants = list(
-        product.variants.prefetch_related('attributes').order_by('id')
-    )
+    variants = list(product.variants.prefetch_related('attributes').order_by('id'))
 
     if request.method == 'GET':
         return render(request, 'products/bulk_edit_variants.html', {
@@ -632,8 +483,6 @@ def bulk_edit_variants(request, product_id):
             'variants': variants,
         })
 
-    # POST — each variant's fields are submitted with its id
-    # in the field name, e.g. stock_quantity_14, price_adjustment_14
     errors = []
     updates = []
 
@@ -659,10 +508,7 @@ def bulk_edit_variants(request, product_id):
             continue
 
         if sku:
-            sku_taken = ProductVariant.objects.filter(
-                sku=sku
-            ).exclude(id=variant.id).exists()
-            if sku_taken:
+            if ProductVariant.objects.filter(sku=sku).exclude(id=variant.id).exists():
                 errors.append(
                     f'{variant.display_name}: SKU "{sku}" already used by another variant.'
                 )
@@ -687,7 +533,6 @@ def bulk_edit_variants(request, product_id):
     for update in updates:
         variant = update['variant']
         previous_stock = variant.stock_quantity
-
         variant.stock_quantity = update['stock_quantity']
         variant.price_adjustment = update['price_adjustment']
         variant.sku = update['sku']
@@ -703,3 +548,77 @@ def bulk_edit_variants(request, product_id):
 
     messages.success(request, f'{len(updates)} variant(s) updated.')
     return redirect('products:manage_variants', product_id=product.id)
+
+
+@login_required
+def storefront_settings(request, business_id):
+    business = get_object_or_404(
+        Business,
+        id=business_id,
+        owner=request.user,
+    )
+
+    storefront, _ = VendorStorefront.objects.get_or_create(business=business)
+    own_products = Product.objects.filter(
+        business=business,
+        is_active=True,
+    ).order_by('name')
+
+    if request.method == 'GET':
+        return render(request, 'products/storefront_settings.html', {
+            'business': business,
+            'storefront': storefront,
+            'own_products': own_products,
+        })
+
+    tagline = request.POST.get('tagline', '').strip()
+    accent_colour = request.POST.get('accent_colour', '#3b82f6').strip()
+    featured_ids = request.POST.getlist('featured_products')
+    remove_banner = request.POST.get('remove_banner') == 'on'
+
+    errors = []
+
+    if len(tagline) > 200:
+        errors.append('Tagline must be 200 characters or fewer.')
+
+    if not accent_colour.startswith('#') or len(accent_colour) not in (4, 7):
+        errors.append('Accent colour must be a valid hex code, e.g. #3b82f6.')
+
+    if len(featured_ids) > 6:
+        errors.append('You can feature a maximum of 6 products.')
+
+    if errors:
+        for error in errors:
+            messages.error(request, error)
+        return render(request, 'products/storefront_settings.html', {
+            'business': business,
+            'storefront': storefront,
+            'own_products': own_products,
+        })
+
+    storefront.tagline = tagline
+    storefront.accent_colour = accent_colour
+
+    if remove_banner and storefront.banner_image:
+        storefront.banner_image.delete(save=False)
+        storefront.banner_image = None
+
+    if 'banner_image' in request.FILES:
+        storefront.banner_image = request.FILES['banner_image']
+
+    storefront.save()
+
+    featured = Product.objects.filter(
+        id__in=featured_ids,
+        business=business,
+        is_active=True,
+    )
+    storefront.featured_products.set(featured)
+
+    logger.info(
+        f'Storefront updated — business: {business.name} | '
+        f'by: {request.user.email}'
+    )
+
+    messages.success(request, 'Storefront updated successfully.')
+    return redirect('products:storefront_settings', business_id=business.id)

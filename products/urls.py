@@ -14,6 +14,7 @@ urlpatterns = [
     path('manage/<int:product_id>/variants/<int:variant_id>/edit/', views.edit_variant, name='edit_variant'),
     path('manage/<int:product_id>/variants/bulk/', views.bulk_generate_variants, name='bulk_generate_variants'),
     path('manage/<int:product_id>/variants/bulk-edit/', views.bulk_edit_variants, name='bulk_edit_variants'),
+    path('storefront/<int:business_id>/', views.storefront_settings, name='storefront_settings'),
 
     path('<int:id>/', views.product_detail, name='product_detail'),
 ]

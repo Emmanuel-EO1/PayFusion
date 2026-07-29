@@ -24,10 +24,6 @@ class Business(models.Model):
     state = models.CharField(max_length=100)
     country = models.CharField(max_length=100)
 
-    # Vendor-level commission rate override.
-    # When set, this takes priority over category rate and platform default.
-    # Null means: use the category rate or platform default instead.
-    # Example: 0.07 = 7% for this specific vendor.
     commission_rate = models.DecimalField(
         max_digits=5,
         decimal_places=4,
@@ -63,19 +59,12 @@ class Wallet(models.Model):
         related_name='wallet'
     )
 
-    # Available balance — withdrawable funds.
-    # Credits here come from escrow releases after delivery confirmation.
-    # This is the only balance used for withdrawal calculations.
     balance = models.DecimalField(
         max_digits=12,
         decimal_places=2,
         default=Decimal('0.00')
     )
 
-    # Escrow balance — held funds, not yet withdrawable.
-    # Credits here come from payment confirmation (charge.success webhook).
-    # Releases to balance when delivery is confirmed by customer.
-    # Frozen when a dispute is raised on the related order.
     escrow_balance = models.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -88,8 +77,6 @@ class Wallet(models.Model):
 
     @property
     def total_balance(self):
-        # Display only — never used for withdrawal calculations.
-        # Shows vendor their complete financial picture.
         return self.balance + self.escrow_balance
 
     def __str__(self):
@@ -254,7 +241,76 @@ class WithdrawalRequest(models.Model):
         return self.status == 'pending_audit'
 
 
+# ============================================================
+# VENDOR STOREFRONT MODEL (Phase 10 Step 5)
+#
+# Stores customisation data for a vendor's public-facing
+# storefront page at /store/<business-slug>/.
+# OneToOne with Business — every business gets exactly one
+# storefront configuration.
+# Auto-created via signal when a Business is created so every
+# vendor always has a storefront record, even if uncustomised.
+# ============================================================
+class VendorStorefront(models.Model):
+
+    business = models.OneToOneField(
+        Business,
+        on_delete=models.CASCADE,
+        related_name='storefront'
+    )
+
+    # Short tagline shown under the business name on the storefront
+    tagline = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        help_text='Short description shown under your store name.'
+    )
+
+    # Accent colour as a hex code (e.g. #3b82f6).
+    # Used for the storefront's header background and button colours.
+    accent_colour = models.CharField(
+        max_length=7,
+        default='#3b82f6',
+        help_text='Hex colour code for your storefront theme, e.g. #3b82f6.'
+    )
+
+    # Banner image — optional, shown at the top of the storefront.
+    # ImageField stores the file path; actual file upload handled
+    # by Cloudinary in production (same pattern as URC project).
+    banner_image = models.ImageField(
+        upload_to='storefront_banners/',
+        blank=True,
+        null=True,
+        help_text='Recommended size: 1200 x 300px.'
+    )
+
+    # Vendor hand-picks up to 6 products to feature prominently
+    # at the top of their storefront, above the full catalogue.
+    # ManyToMany — blank=True since featuring products is optional.
+    featured_products = models.ManyToManyField(
+        'products.Product',
+        blank=True,
+        related_name='featured_in_storefronts',
+        help_text='Select up to 6 products to feature on your storefront.'
+    )
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Storefront — {self.business.name}'
+
+    @property
+    def has_banner(self):
+        return bool(self.banner_image)
+
+    @property
+    def display_tagline(self):
+        return self.tagline or self.business.industry
+
+
 @receiver(post_save, sender=Business)
 def create_business_wallet(sender, instance, created, **kwargs):
     if created:
         Wallet.objects.create(business=instance)
+        VendorStorefront.objects.create(business=instance)

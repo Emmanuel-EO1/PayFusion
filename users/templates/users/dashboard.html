@@ -40,6 +40,9 @@
             <a href="{% url 'users:business_analytics' data.business.id %}" class="btn btn-sm btn-outline-primary mb-3">
                 View Analytics
             </a>
+            <a href="{% url 'products:storefront_settings' data.business.id %}" class="btn btn-sm btn-outline-secondary mb-3 ms-2">
+                Storefront Settings
+            </a>
 
             {# --- Wallet Breakdown --- #}
             <div class="row mt-3 mb-2">
