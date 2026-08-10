@@ -64,6 +64,122 @@ def manage_products(request):
 
 
 @login_required
+def create_product(request, business_id):
+    """
+    Creates a new product for a vendor's business.
+    Works as a standalone form (Add Product button) or
+    receives pre-filled data from the AI description generator.
+
+    GET  → show blank or pre-filled form
+    POST → validate and save product to database
+    """
+    business = get_object_or_404(
+        Business,
+        id=business_id,
+        owner=request.user,
+    )
+
+    categories = ProductCategory.objects.all()
+
+    if request.method == 'GET':
+        return render(request, 'products/create_product.html', {
+            'business': business,
+            'categories': categories,
+            'draft': {},
+        })
+
+    # POST — read every field the vendor submitted
+    name = request.POST.get('name', '').strip()
+    description = request.POST.get('description', '').strip()
+    price_raw = request.POST.get('price', '').strip()
+    sku = request.POST.get('sku', '').strip()
+    stock_quantity_raw = request.POST.get('stock_quantity', '0').strip()
+    low_stock_threshold_raw = request.POST.get('low_stock_threshold', '5').strip()
+    category_id = request.POST.get('category', '').strip()
+    is_active = request.POST.get('is_active') == 'on'
+    tags_raw = request.POST.get('tags', '').strip()
+    tag_names = [t.strip() for t in tags_raw.split(',') if t.strip()]
+
+    errors = []
+
+    if not name:
+        errors.append('Product name is required.')
+
+    try:
+        price = Decimal(price_raw)
+        if price <= 0:
+            errors.append('Price must be greater than zero.')
+    except (InvalidOperation, TypeError):
+        errors.append('Please enter a valid price.')
+        price = Decimal('0.00')
+
+    try:
+        stock_quantity = int(stock_quantity_raw)
+        if stock_quantity < 0:
+            errors.append('Stock quantity cannot be negative.')
+    except (ValueError, TypeError):
+        errors.append('Please enter a valid stock quantity.')
+        stock_quantity = 0
+
+    try:
+        low_stock_threshold = int(low_stock_threshold_raw)
+        if low_stock_threshold < 0:
+            errors.append('Low stock threshold cannot be negative.')
+    except (ValueError, TypeError):
+        errors.append('Please enter a valid low stock threshold.')
+        low_stock_threshold = 5
+
+    if sku:
+        if Product.objects.filter(sku=sku).exists():
+            errors.append(f'SKU "{sku}" is already used by another product.')
+
+    category = None
+    if category_id:
+        category = ProductCategory.objects.filter(id=category_id).first()
+
+    if errors:
+        for error in errors:
+            messages.error(request, error)
+        return render(request, 'products/create_product.html', {
+            'business': business,
+            'categories': categories,
+            'draft': {
+                'title': name,
+                'description': description,
+                'tags': tags_raw,
+            },
+        })
+
+    # All validation passed — save the product
+    product = Product.objects.create(
+        business=business,
+        name=name,
+        description=description,
+        price=price,
+        sku=sku or None,
+        stock_quantity=stock_quantity,
+        low_stock_threshold=low_stock_threshold,
+        category=category,
+        is_active=is_active,
+    )
+
+    new_tags = []
+    for tag_name in tag_names:
+        tag = Tag.get_or_create_normalised(tag_name)
+        if tag:
+            new_tags.append(tag)
+    product.tags.set(new_tags)
+
+    logger.info(
+        f'Product created — business: {business.name} | '
+        f'product: {product.name} | by: {request.user.email}'
+    )
+
+    messages.success(request, f'{product.name} created successfully.')
+    return redirect('products:manage_products')
+
+
+@login_required
 def edit_product(request, product_id):
     product = get_object_or_404(
         Product,
@@ -173,7 +289,9 @@ def manage_variants(request, product_id):
         id=product_id,
         business__owner=request.user,
     )
+
     variants = product.variants.prefetch_related('attributes').all()
+
     return render(request, 'products/manage_variants.html', {
         'product': product,
         'variants': variants,
@@ -199,6 +317,7 @@ def _build_attribute_rows(existing_attributes=None):
             rows.append(Row(i, attr.name, attr.value))
         else:
             rows.append(Row(i))
+
     return rows
 
 
@@ -258,7 +377,8 @@ def add_variant(request, product_id):
         low_stock_threshold = 5
 
     if sku:
-        if ProductVariant.objects.filter(sku=sku).exists():
+        sku_taken = ProductVariant.objects.filter(sku=sku).exists()
+        if sku_taken:
             errors.append(f'SKU "{sku}" is already used by another variant.')
 
     attribute_pairs = _extract_attributes_from_post(request.POST)
@@ -284,7 +404,11 @@ def add_variant(request, product_id):
     )
 
     for name, value in attribute_pairs:
-        VariantAttribute.objects.create(variant=variant, name=name, value=value)
+        VariantAttribute.objects.create(
+            variant=variant,
+            name=name,
+            value=value,
+        )
 
     logger.info(
         f'Variant created — product: {product.name} | '
@@ -302,13 +426,18 @@ def edit_variant(request, product_id, variant_id):
         id=product_id,
         business__owner=request.user,
     )
-    variant = get_object_or_404(ProductVariant, id=variant_id, product=product)
+    variant = get_object_or_404(
+        ProductVariant,
+        id=variant_id,
+        product=product,
+    )
 
     if request.method == 'GET':
+        existing_attributes = list(variant.attributes.all())
         return render(request, 'products/variant_form.html', {
             'product': product,
             'variant': variant,
-            'attribute_rows': _build_attribute_rows(list(variant.attributes.all())),
+            'attribute_rows': _build_attribute_rows(existing_attributes),
         })
 
     sku = request.POST.get('sku', '').strip()
@@ -342,7 +471,10 @@ def edit_variant(request, product_id, variant_id):
         low_stock_threshold = variant.low_stock_threshold
 
     if sku:
-        if ProductVariant.objects.filter(sku=sku).exclude(id=variant.id).exists():
+        sku_taken = ProductVariant.objects.filter(
+            sku=sku
+        ).exclude(id=variant.id).exists()
+        if sku_taken:
             errors.append(f'SKU "{sku}" is already used by another variant.')
 
     attribute_pairs = _extract_attributes_from_post(request.POST)
@@ -359,6 +491,7 @@ def edit_variant(request, product_id, variant_id):
         })
 
     previous_stock = variant.stock_quantity
+
     variant.sku = sku or None
     variant.price_adjustment = price_adjustment
     variant.stock_quantity = stock_quantity
@@ -368,7 +501,11 @@ def edit_variant(request, product_id, variant_id):
 
     variant.attributes.all().delete()
     for name, value in attribute_pairs:
-        VariantAttribute.objects.create(variant=variant, name=name, value=value)
+        VariantAttribute.objects.create(
+            variant=variant,
+            name=name,
+            value=value,
+        )
 
     if stock_quantity != previous_stock:
         logger.info(
@@ -398,8 +535,10 @@ def bulk_generate_variants(request, product_id):
     for i in range(1, ATTRIBUTE_ROW_COUNT + 1):
         name = request.POST.get(f'attribute_name_{i}', '').strip()
         values_raw = request.POST.get(f'attribute_values_{i}', '').strip()
+
         if not name or not values_raw:
             continue
+
         values = [v.strip() for v in values_raw.split(',') if v.strip()]
         if values:
             attribute_sets.append((name, values))
@@ -407,7 +546,7 @@ def bulk_generate_variants(request, product_id):
     if not attribute_sets:
         messages.error(
             request,
-            'Please provide at least one attribute with values, e.g. Size: 40, 41, 42.'
+            'Please provide at least one attribute with values.'
         )
         return render(request, 'products/bulk_generate_variants.html', {
             'product': product,
@@ -420,7 +559,9 @@ def bulk_generate_variants(request, product_id):
 
     existing_combinations = set()
     for variant in product.variants.prefetch_related('attributes').all():
-        combo = tuple(sorted((a.name, a.value) for a in variant.attributes.all()))
+        combo = tuple(
+            sorted((a.name, a.value) for a in variant.attributes.all())
+        )
         existing_combinations.add(combo)
 
     created_count = 0
@@ -440,8 +581,13 @@ def bulk_generate_variants(request, product_id):
             price_adjustment=Decimal('0.00'),
             is_active=True,
         )
+
         for name, value in combo_pairs:
-            VariantAttribute.objects.create(variant=variant, name=name, value=value)
+            VariantAttribute.objects.create(
+                variant=variant,
+                name=name,
+                value=value,
+            )
 
         existing_combinations.add(combo_key)
         created_count += 1
@@ -456,13 +602,12 @@ def bulk_generate_variants(request, product_id):
         messages.success(
             request,
             f'{created_count} variant(s) created. '
-            f'{skipped_count} already existed and were skipped. '
-            f'Set stock and pricing below.'
+            f'{skipped_count} already existed and were skipped.'
         )
     else:
         messages.info(
             request,
-            f'No new variants created — all {skipped_count} combination(s) already existed.'
+            f'No new variants — all {skipped_count} combination(s) already existed.'
         )
 
     return redirect('products:bulk_edit_variants', product_id=product.id)
@@ -475,7 +620,10 @@ def bulk_edit_variants(request, product_id):
         id=product_id,
         business__owner=request.user,
     )
-    variants = list(product.variants.prefetch_related('attributes').order_by('id'))
+
+    variants = list(
+        product.variants.prefetch_related('attributes').order_by('id')
+    )
 
     if request.method == 'GET':
         return render(request, 'products/bulk_edit_variants.html', {
@@ -508,10 +656,11 @@ def bulk_edit_variants(request, product_id):
             continue
 
         if sku:
-            if ProductVariant.objects.filter(sku=sku).exclude(id=variant.id).exists():
-                errors.append(
-                    f'{variant.display_name}: SKU "{sku}" already used by another variant.'
-                )
+            sku_taken = ProductVariant.objects.filter(
+                sku=sku
+            ).exclude(id=variant.id).exists()
+            if sku_taken:
+                errors.append(f'{variant.display_name}: SKU "{sku}" already used.')
                 continue
 
         updates.append({
@@ -533,6 +682,7 @@ def bulk_edit_variants(request, product_id):
     for update in updates:
         variant = update['variant']
         previous_stock = variant.stock_quantity
+
         variant.stock_quantity = update['stock_quantity']
         variant.price_adjustment = update['price_adjustment']
         variant.sku = update['sku']
@@ -622,3 +772,66 @@ def storefront_settings(request, business_id):
 
     messages.success(request, 'Storefront updated successfully.')
     return redirect('products:storefront_settings', business_id=business.id)
+
+
+@login_required
+def generate_description(request, business_id):
+    business = get_object_or_404(
+        Business,
+        id=business_id,
+        owner=request.user,
+    )
+
+    categories = ProductCategory.objects.all()
+
+    if request.method == 'GET':
+        return render(request, 'products/generate_description.html', {
+            'business': business,
+            'categories': categories,
+        })
+
+    if 'product_image' not in request.FILES:
+        messages.error(request, 'Please upload a product image.')
+        return render(request, 'products/generate_description.html', {
+            'business': business,
+            'categories': categories,
+        })
+
+    image_file = request.FILES['product_image']
+
+    allowed_types = ('image/jpeg', 'image/png', 'image/webp', 'image/gif')
+    if image_file.content_type not in allowed_types:
+        messages.error(request, 'Please upload a JPEG, PNG, WebP, or GIF image.')
+        return render(request, 'products/generate_description.html', {
+            'business': business,
+            'categories': categories,
+        })
+
+    if image_file.size > 5 * 1024 * 1024:
+        messages.error(request, 'Image must be under 5MB.')
+        return render(request, 'products/generate_description.html', {
+            'business': business,
+            'categories': categories,
+        })
+
+    try:
+        from products.ai_service import generate_product_content_from_image
+        draft = generate_product_content_from_image(image_file)
+        messages.success(
+            request,
+            'AI draft generated. Review and edit below, then save your product.'
+        )
+    except ValueError as e:
+        messages.error(request, str(e))
+        return render(request, 'products/generate_description.html', {
+            'business': business,
+            'categories': categories,
+        })
+
+    # Render create_product template directly with AI draft pre-filled
+    return render(request, 'products/create_product.html', {
+        'business': business,
+        'categories': categories,
+        'draft': draft,
+        'from_ai': True,
+    })

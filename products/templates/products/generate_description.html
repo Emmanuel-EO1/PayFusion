@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}AI Description Generator — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width:650px;">
+
+    <h2 class="mb-1">AI Product Description Generator</h2>
+    <p class="text-muted mb-4">{{ business.name }}</p>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} alert-dismissible">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card mb-4" style="border:1px solid #ddd; background:#f8f9fa;">
+        <div class="card-body p-3 small">
+            Upload a clear photo of your product. The AI will analyse
+            it and generate a title, description, and tags. You will
+            review and edit everything before the product is saved.
+        </div>
+    </div>
+
+    <div class="card" style="border:1px solid #ddd;">
+        <div class="card-body p-4">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label class="form-label">Product Image</label>
+                    <input type="file" name="product_image"
+                           class="form-control" accept="image/*" required>
+                    <p class="text-muted small mt-1 mb-0">
+                        JPEG, PNG, WebP, or GIF. Max 5MB.
+                        Use a clear, well-lit photo for best results.
+                    </p>
+                </div>
+
+                <button type="submit" class="btn btn-success">
+                    Generate Description
+                </button>
+                <a href="{% url 'products:manage_products' %}" class="btn btn-outline-secondary">
+                    Cancel
+                </a>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

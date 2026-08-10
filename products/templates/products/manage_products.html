@@ -46,8 +46,21 @@
     {% else %}
         {% for group in business_products %}
         <div class="card mb-5" style="border:1px solid #ddd;">
-            <div class="card-body p-4">
-                <h4 class="mb-3">{{ group.business.name }}</h4>
+            <div class="card-body p-4">    
+                            
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0">{{ group.business.name }}</h4>
+                    <div>
+                        <a href="{% url 'products:create_product' group.business.id %}"
+                        class="btn btn-sm btn-success me-2">
+                            Add Product
+                        </a>
+                        <a href="{% url 'products:generate_description' group.business.id %}"
+                        class="btn btn-sm btn-outline-dark">
+                            AI Description
+                        </a>
+                    </div>
+                </div>
 
                 {% if not group.products %}
                     <p class="text-muted">

@@ -72,6 +72,9 @@ DEFAULT_FROM_EMAIL = os.getenv(
     'PayFusion <noreply@payfusion.com>'
 )
 
+#OPENAI API KEY
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
 # ============================================================
 # AUTHENTICATION
 # ============================================================
