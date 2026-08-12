@@ -14,6 +14,7 @@ urlpatterns = [
 
     path('dashboard/', views.dashboard, name='dashboard'),
     path('dashboard/analytics/<int:business_id>/', views.business_analytics, name='business_analytics'),
+    path('dashboard/earnings/<int:business_id>/', views.earnings_statement, name='earnings_statement'),
 
     path('history/', views.transaction_history, name='transaction_history'),
     path('sales/', views.sales_history, name='sales_history'),
