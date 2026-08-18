@@ -75,6 +75,7 @@ DEFAULT_FROM_EMAIL = os.getenv(
 #OPENAI API KEY
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
+
 # ============================================================
 # AUTHENTICATION
 # ============================================================
@@ -201,6 +202,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'  # Where collectstatic puts files for pro
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'mediafiles'
 
+SITE_URL = os.environ.get('SITE_URL', 'http://localhost:8000')
 
 # ============================================================
 # CART

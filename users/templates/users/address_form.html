@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{% if address %}Edit Address{% else %}Add Address{% endif %} — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width:600px;">
+
+    <h2 class="mb-4">{% if address %}Edit Address{% else %}Add Address{% endif %}</h2>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-danger alert-dismissible">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card" style="border:1px solid #ddd;">
+        <div class="card-body p-4">
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" name="full_name" class="form-control"
+                               value="{{ address.full_name|default:'' }}" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Phone Number</label>
+                        <input type="text" name="phone" class="form-control"
+                               value="{{ address.phone|default:'' }}" required>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Address Line 1</label>
+                    <input type="text" name="address_line_1" class="form-control"
+                           value="{{ address.address_line_1|default:'' }}" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Address Line 2 <span class="text-muted small">(Optional)</span></label>
+                    <input type="text" name="address_line_2" class="form-control"
+                           value="{{ address.address_line_2|default:'' }}">
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">City</label>
+                        <input type="text" name="city" class="form-control"
+                               value="{{ address.city|default:'' }}" required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">State</label>
+                        <input type="text" name="state" class="form-control"
+                               value="{{ address.state|default:'' }}" required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Country</label>
+                        <input type="text" name="country" class="form-control"
+                               value="{{ address.country|default:'Nigeria' }}">
+                    </div>
+                </div>
+
+                <div class="form-check mb-4">
+                    <input type="checkbox" name="is_default" class="form-check-input"
+                           id="is_default"
+                           {% if address.is_default %}checked{% endif %}>
+                    <label class="form-check-label" for="is_default">
+                        Set as default delivery address
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-success">
+                    {% if address %}Save Changes{% else %}Add Address{% endif %}
+                </button>
+                <a href="{% url 'users:manage_addresses' %}" class="btn btn-outline-secondary">
+                    Cancel
+                </a>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

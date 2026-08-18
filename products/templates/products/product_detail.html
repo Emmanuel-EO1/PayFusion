@@ -79,4 +79,13 @@
 
     </div>
 </form>
+
+{% if user.is_authenticated %}
+<form method="post" action="{% url 'users:wishlist_add' product.id %}" class="mt-2">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline-secondary btn-sm">
+        ♡ Add to Wishlist
+    </button>
+</form>
+{% endif %}
 {% endblock %}

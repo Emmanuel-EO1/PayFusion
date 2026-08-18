@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}My Profile — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width:650px;">
+
+    <h2 class="mb-1">My Profile</h2>
+    <p class="text-muted mb-4">{{ request.user.email }}</p>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} alert-dismissible">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    {% if not profile.is_email_verified %}
+    <div class="alert alert-warning">
+        Your email address is not verified. Some features may be restricted.
+    </div>
+    {% endif %}
+
+    <div class="card mb-4" style="border:1px solid #ddd;">
+        <div class="card-body p-4">
+            <h5 class="mb-3">Personal Details</h5>
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label class="form-label">Display Name</label>
+                    <input type="text" name="display_name" class="form-control"
+                           value="{{ profile.display_name }}" maxlength="100">
+                    <p class="text-muted small mt-1 mb-0">
+                        Shown on your reviews. Leave blank to use your username.
+                    </p>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label">Phone Number</label>
+                    <input type="text" name="phone" class="form-control"
+                           value="{{ profile.phone }}">
+                </div>
+
+                <h5 class="mb-3">Email Notifications</h5>
+
+                <div class="form-check mb-2">
+                    <input type="checkbox" name="notify_order_updates"
+                           class="form-check-input" id="n1"
+                           {% if profile.notify_order_updates %}checked{% endif %}>
+                    <label class="form-check-label" for="n1">
+                        Order status updates
+                    </label>
+                </div>
+                <div class="form-check mb-2">
+                    <input type="checkbox" name="notify_delivery_updates"
+                           class="form-check-input" id="n2"
+                           {% if profile.notify_delivery_updates %}checked{% endif %}>
+                    <label class="form-check-label" for="n2">
+                        Delivery status updates
+                    </label>
+                </div>
+                <div class="form-check mb-2">
+                    <input type="checkbox" name="notify_dispute_updates"
+                           class="form-check-input" id="n3"
+                           {% if profile.notify_dispute_updates %}checked{% endif %}>
+                    <label class="form-check-label" for="n3">
+                        Dispute status updates
+                    </label>
+                </div>
+                <div class="form-check mb-4">
+                    <input type="checkbox" name="notify_promotions"
+                           class="form-check-input" id="n4"
+                           {% if profile.notify_promotions %}checked{% endif %}>
+                    <label class="form-check-label" for="n4">
+                        Promotions and new products
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-success">Save Profile</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <a href="{% url 'users:manage_addresses' %}" class="btn btn-outline-primary">
+            Manage Addresses
+        </a>
+        <a href="{% url 'users:wishlist' %}" class="btn btn-outline-secondary">
+            My Wishlist
+        </a>
+        <a href="{% url 'users:transaction_history' %}" class="btn btn-outline-secondary">
+            Purchase History
+        </a>
+    </div>
+
+</div>
+{% endblock %}
