@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Product, ProductCategory, ProductVariant, VariantAttribute, Tag
+from .models import Product, ProductCategory, ProductVariant, VariantAttribute, Tag, Review, ReviewResponse
 
 
 @admin.register(Tag)
@@ -125,3 +125,26 @@ class ProductAdmin(admin.ModelAdmin):
             colour,
             label,
         )
+
+@admin.register(Review)
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = ('product', 'user', 'rating', 'is_hidden', 'created_at')
+    list_filter = ('rating', 'is_hidden', 'created_at')
+    search_fields = ('product__name', 'user__email', 'body')
+    readonly_fields = ('product', 'user', 'order', 'rating', 'body', 'created_at', 'updated_at')
+    actions = ['hide_reviews', 'unhide_reviews']
+
+    @admin.action(description='Hide selected reviews')
+    def hide_reviews(self, request, queryset):
+        queryset.update(is_hidden=True)
+
+    @admin.action(description='Unhide selected reviews')
+    def unhide_reviews(self, request, queryset):
+        queryset.update(is_hidden=False)
+
+
+@admin.register(ReviewResponse)
+class ReviewResponseAdmin(admin.ModelAdmin):
+    list_display = ('review', 'vendor_business', 'created_at')
+    search_fields = ('review__product__name', 'vendor_business__name', 'body')
+    readonly_fields = ('review', 'vendor_business', 'created_at')

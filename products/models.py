@@ -312,3 +312,67 @@ class VariantAttribute(models.Model):
 
     def __str__(self):
         return f'{self.name}: {self.value}'
+
+
+class Review(models.Model):
+
+    RATING_CHOICES = [(i, str(i)) for i in range(1, 6)]
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='reviews'
+    )
+    user = models.ForeignKey(
+        'users.User',
+        on_delete=models.CASCADE,
+        related_name='reviews'
+    )
+    # The delivered order that proves the purchase
+    order = models.ForeignKey(
+        'orders.Order',
+        on_delete=models.PROTECT,
+        related_name='reviews'
+    )
+
+    rating = models.PositiveSmallIntegerField(choices=RATING_CHOICES)
+    body = models.TextField()
+    is_hidden = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['product', 'user'],
+                name='unique_review_per_user_per_product'
+            )
+        ]
+        indexes = [
+            models.Index(fields=['product', 'is_hidden'], name='review_product_idx'),
+            models.Index(fields=['user'], name='review_user_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.user.email} — {self.product.name} ({self.rating}★)'
+
+
+class ReviewResponse(models.Model):
+
+    review = models.OneToOneField(
+        Review,
+        on_delete=models.CASCADE,
+        related_name='response'
+    )
+    vendor_business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name='review_responses'
+    )
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'Response to review #{self.review.id}'

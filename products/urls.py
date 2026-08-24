@@ -17,6 +17,10 @@ urlpatterns = [
     path('storefront/<int:business_id>/', views.storefront_settings, name='storefront_settings'),
     path('generate-description/<int:business_id>/', views.generate_description, name='generate_description'),
     path('create/<int:business_id>/', views.create_product, name='create_product'),
+    path('review/<int:product_id>/submit/', views.submit_review, name='submit_review'),
+    path('review/<int:review_id>/edit/', views.edit_review, name='edit_review'),
+    path('review/<int:review_id>/respond/', views.submit_response, name='submit_response'),
+    path('review/<int:review_id>/hide/', views.hide_review, name='hide_review'),
 
     path('<int:id>/', views.product_detail, name='product_detail'),
 ]

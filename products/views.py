@@ -20,8 +20,16 @@ def product_list(request):
 
 
 def product_detail(request, id):
+    from products.models import Review
     product = get_object_or_404(Product, id=id)
-    return render(request, 'products/product_detail.html', {'product': product})
+    user_has_reviewed = (
+        request.user.is_authenticated and
+        Review.objects.filter(user=request.user, product=product).exists()
+    )
+    return render(request, 'products/product_detail.html', {
+        'product': product,
+        'user_has_reviewed': user_has_reviewed,
+    })
 
 
 @login_required
@@ -835,3 +843,138 @@ def generate_description(request, business_id):
         'draft': draft,
         'from_ai': True,
     })
+
+# ============================================================
+# REVIEWS (Phase 11 Step 2)
+# ============================================================
+
+def _user_can_review(user, product):
+    from orders.models import OrderItem
+    item = OrderItem.objects.filter(
+        product=product,
+        order__user=user,
+        order__status='paid',
+        order__delivery__status='delivered',
+    ).select_related('order').first()
+    return item.order if item else None
+
+
+@login_required
+def submit_review(request, product_id):
+    from products.models import Review
+    product = get_object_or_404(Product, id=product_id, is_active=True)
+
+    existing = Review.objects.filter(user=request.user, product=product).first()
+    if existing:
+        messages.info(request, 'You have already reviewed this product.')
+        return redirect('products:product_detail', id=product_id)
+
+    delivered_order = _user_can_review(request.user, product)
+    if not delivered_order:
+        messages.error(request, 'You can only review products you have purchased and received.')
+        return redirect('products:product_detail', id=product_id)
+
+    if request.method == 'GET':
+        return render(request, 'products/submit_review.html', {'product': product})
+
+    rating = request.POST.get('rating', '').strip()
+    body = request.POST.get('body', '').strip()
+
+    errors = []
+    if not rating or not rating.isdigit() or int(rating) not in range(1, 6):
+        errors.append('Please select a rating between 1 and 5.')
+    if not body:
+        errors.append('Please write a review.')
+    if len(body) < 10:
+        errors.append('Review must be at least 10 characters.')
+
+    if errors:
+        for error in errors:
+            messages.error(request, error)
+        return render(request, 'products/submit_review.html', {'product': product})
+
+    Review.objects.create(
+        product=product,
+        user=request.user,
+        order=delivered_order,
+        rating=int(rating),
+        body=body,
+    )
+
+    messages.success(request, 'Your review has been submitted.')
+    return redirect('products:product_detail', id=product_id)
+
+
+@login_required
+def edit_review(request, review_id):
+    from products.models import Review
+    review = get_object_or_404(Review, id=review_id, user=request.user)
+
+    if request.method == 'GET':
+        return render(request, 'products/edit_review.html', {'review': review})
+
+    rating = request.POST.get('rating', '').strip()
+    body = request.POST.get('body', '').strip()
+
+    errors = []
+    if not rating or not rating.isdigit() or int(rating) not in range(1, 6):
+        errors.append('Please select a rating between 1 and 5.')
+    if not body or len(body) < 10:
+        errors.append('Review must be at least 10 characters.')
+
+    if errors:
+        for error in errors:
+            messages.error(request, error)
+        return render(request, 'products/edit_review.html', {'review': review})
+
+    review.rating = int(rating)
+    review.body = body
+    review.save(update_fields=['rating', 'body', 'updated_at'])
+
+    messages.success(request, 'Review updated.')
+    return redirect('products:product_detail', id=review.product.id)
+
+
+@require_POST
+@login_required
+def submit_response(request, review_id):
+    from products.models import Review, ReviewResponse
+    review = get_object_or_404(
+        Review,
+        id=review_id,
+        product__business__owner=request.user,
+    )
+
+    body = request.POST.get('body', '').strip()
+    if not body:
+        messages.error(request, 'Response cannot be empty.')
+        return redirect('products:product_detail', id=review.product.id)
+
+    ReviewResponse.objects.update_or_create(
+        review=review,
+        defaults={
+            'vendor_business': review.product.business,
+            'body': body,
+        }
+    )
+
+    messages.success(request, 'Response posted.')
+    return redirect('products:product_detail', id=review.product.id)
+
+
+@require_POST
+@login_required
+def hide_review(request, review_id):
+    from products.models import Review
+
+    if not request.user.is_staff:
+        messages.error(request, 'Permission denied.')
+        return redirect('core:home')
+
+    review = get_object_or_404(Review, id=review_id)
+    review.is_hidden = not review.is_hidden
+    review.save(update_fields=['is_hidden'])
+
+    status = 'hidden' if review.is_hidden else 'visible'
+    messages.success(request, f'Review marked as {status}.')
+    return redirect('products:product_detail', id=review.product.id)

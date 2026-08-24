@@ -88,4 +88,63 @@
     </button>
 </form>
 {% endif %}
+
+<hr class="mt-4">
+    <h5>Reviews ({{ product.reviews.count }})</h5>
+
+    {% with avg=product.reviews.filter(is_hidden=False) %}
+    {% endwith %}
+
+    {% if user.is_authenticated and not user_has_reviewed %}
+    <a href="{% url 'products:submit_review' product.id %}"
+    class="btn btn-outline-primary btn-sm mb-3">
+        Write a Review
+    </a>
+    {% endif %}
+
+    {% for review in product.reviews.all %}
+        {% if not review.is_hidden %}
+            <div class="border rounded p-3 mb-3">
+                <div class="d-flex justify-content-between">
+                    <strong>{{ review.user.profile.name_display }}</strong>
+                    <span>{{ review.rating }}★</span>
+                </div>
+                <p class="text-muted small mb-1">{{ review.created_at|date:"M j, Y" }}</p>
+                <p class="mb-2">{{ review.body }}</p>
+
+                {% if review.response %}
+                <div class="bg-light p-2 rounded small">
+                    <strong>Vendor response:</strong> {{ review.response.body }}
+                </div>
+                {% endif %}
+
+                {% if user == review.product.business.owner and not review.response %}
+                <form method="post" action="{% url 'products:submit_response' review.id %}" class="mt-2">
+                    {% csrf_token %}
+                    <textarea name="body" class="form-control form-control-sm mb-1"
+                            rows="2" placeholder="Write a response..."></textarea>
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                        Respond
+                    </button>
+                </form>
+                {% endif %}
+
+                {% if user == review.user %}
+                <a href="{% url 'products:edit_review' review.id %}"
+                class="btn btn-sm btn-outline-secondary mt-1">Edit</a>
+                {% endif %}
+
+                {% if user.is_staff %}
+                <form method="post" action="{% url 'products:hide_review' review.id %}"
+                    style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger mt-1">
+                        {% if review.is_hidden %}Unhide{% else %}Hide{% endif %}
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        {% endif %}
+    {% endfor %}
+
 {% endblock %}
