@@ -1,29 +1,76 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Home{% endblock %}
+{% block title %}Home — PayFusion{% endblock %}
 
 {% block content %}
-    
-    {% if user.is_authenticated %}
-    <div class="home-container">
-        <h1>Welcome to PayFusion</h1>
-        <div class="btn btn-sucess">
-            <a href="{% url 'cart:cart_detail' %}" class="btn btn-secondary">Go to Cart</a>
-        </div>
+<div class="container mt-5">
+
+    {# --- Hero --- #}
+    <div class="text-center mb-5">
+        <h1 class="mb-2">Welcome to PayFusion</h1>
+        <p class="text-muted">Discover products from vendors across Nigeria.</p>
+
+        <form method="get" action="{% url 'core:search' %}" class="d-flex justify-content-center mt-3">
+            <input type="text" name="q" class="form-control me-2"
+                   style="max-width:400px;" placeholder="Search products...">
+            <button type="submit" class="btn btn-success">Search</button>
+        </form>
     </div>
-    <form method="post" action="{% url 'users:logout' %}">
-        {% csrf_token %}
-        <div class="btn btn-sucess">
-            <button type="submit" class="btn btn-danger">Logout</button>
-        </div>
-    </form>
-    {% else %}
-        <div class="home-container">
-            <h1>Welcome to PayFusion</h1>
-            <div class="btn btn-sucess">
-                <a href="{% url 'users:login' %}" class="btn btn-primary">Login</a>
+
+    {# --- Nav buttons --- #}
+    <div class="mb-5 text-center">
+        {% if user.is_authenticated %}
+        <a href="{% url 'cart:cart_detail' %}" class="btn btn-outline-secondary me-2">
+            Cart
+        </a>
+        <a href="{% url 'users:dashboard' %}" class="btn btn-outline-primary me-2">
+            Dashboard
+        </a>
+        <form method="post" action="{% url 'users:logout' %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger">Logout</button>
+        </form>
+        {% else %}
+        <a href="{% url 'users:login' %}" class="btn btn-primary me-2">Login</a>
+        <a href="{% url 'users:register' %}" class="btn btn-outline-primary">Register</a>
+        {% endif %}
+    </div>
+
+    {# --- Trending Products --- #}
+    {% if trending_products %}
+    <h4 class="mb-3">Trending This Week</h4>
+    <div class="row mb-5">
+        {% for product in trending_products %}
+        <div class="col-md-2 mb-3">
+            <div class="card h-100" style="border:1px solid #ddd;">
+                <div class="card-body p-3">
+                    <h6 class="small">{{ product.name }}</h6>
+                    <p class="text-muted small mb-1">{{ product.business.name }}</p>
+                    <p class="small mb-2">
+                        {% if product.has_variants %}
+                            From &#8358;{{ product.display_price_range }}
+                        {% else %}
+                            &#8358;{{ product.price|floatformat:2 }}
+                        {% endif %}
+                    </p>
+                    <a href="{% url 'products:product_detail' product.id %}"
+                       class="btn btn-sm btn-outline-primary w-100">
+                        View
+                    </a>
+                </div>
             </div>
         </div>
+        {% endfor %}
+    </div>
     {% endif %}
+
+    {# --- Browse link --- #}
+    <div class="text-center">
+        <a href="{% url 'core:search' %}" class="btn btn-outline-secondary">
+            Browse All Products
+        </a>
+    </div>
+
+</div>
 {% endblock %}

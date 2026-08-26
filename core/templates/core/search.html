@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+    {% if query %}Search: {{ query }}{% else %}Search Products{% endif %} — PayFusion
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+
+    <h2 class="mb-4">Search Products</h2>
+
+    {# --- Search & Filter Form --- #}
+    <form method="get" action="{% url 'core:search' %}" class="mb-4">
+        <div class="row g-2 align-items-end">
+
+            <div class="col-md-4">
+                <label class="form-label small">Search</label>
+                <input type="text" name="q" class="form-control"
+                       placeholder="Product name, description or tag..."
+                       value="{{ query }}">
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label small">Category</label>
+                <select name="category" class="form-select">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}"
+                        {% if category_id == cat.id|stringformat:"s" %}selected{% endif %}>
+                        {{ cat.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label small">Tag</label>
+                <select name="tag" class="form-select">
+                    <option value="">All Tags</option>
+                    {% for tag in tags %}
+                    <option value="{{ tag.slug }}"
+                        {% if tag_slug == tag.slug %}selected{% endif %}>
+                        {{ tag.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-1">
+                <label class="form-label small">Min ₦</label>
+                <input type="number" name="min_price" class="form-control"
+                       value="{{ min_price }}" min="0">
+            </div>
+
+            <div class="col-md-1">
+                <label class="form-label small">Max ₦</label>
+                <input type="number" name="max_price" class="form-control"
+                       value="{{ max_price }}" min="0">
+            </div>
+
+            <div class="col-md-1">
+                <label class="form-label small">Sort</label>
+                <select name="sort" class="form-select">
+                    <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Newest</option>
+                    <option value="price_asc" {% if sort == 'price_asc' %}selected{% endif %}>Price ↑</option>
+                    <option value="price_desc" {% if sort == 'price_desc' %}selected{% endif %}>Price ↓</option>
+                    <option value="most_reviewed" {% if sort == 'most_reviewed' %}selected{% endif %}>Most Reviewed</option>
+                    <option value="highest_rated" {% if sort == 'highest_rated' %}selected{% endif %}>Highest Rated</option>
+                </select>
+            </div>
+
+            <div class="col-md-1">
+                <div class="form-check mt-4">
+                    <input type="checkbox" name="in_stock" class="form-check-input"
+                           id="in_stock" {% if in_stock %}checked{% endif %}>
+                    <label class="form-check-label small" for="in_stock">In Stock</label>
+                </div>
+            </div>
+
+            <div class="col-auto">
+                <button type="submit" class="btn btn-success">Search</button>
+                {% if query or category_id or tag_slug or min_price or max_price or in_stock %}
+                <a href="{% url 'core:search' %}" class="btn btn-outline-secondary">Clear</a>
+                {% endif %}
+            </div>
+
+        </div>
+    </form>
+
+    {# --- Results Count --- #}
+    <p class="text-muted small mb-3">
+        {{ result_count }} product{{ result_count|pluralize }} found
+        {% if query %}for "<strong>{{ query }}</strong>"{% endif %}
+    </p>
+
+    {# --- Results Grid --- #}
+    {% if page_obj %}
+    <div class="row">
+        {% for product in page_obj %}
+        <div class="col-md-3 mb-4">
+            <div class="card h-100" style="border:1px solid #ddd;">
+                <div class="card-body p-3">
+                    <h6>{{ product.name }}</h6>
+                    <p class="text-muted small mb-1">{{ product.business.name }}</p>
+                    <p class="mb-1">
+                        {% if product.has_variants %}
+                            From &#8358;{{ product.display_price_range }}
+                        {% else %}
+                            &#8358;{{ product.price|floatformat:2 }}
+                        {% endif %}
+                    </p>
+                    {% if product.category %}
+                    <span class="badge bg-light text-dark border small mb-1">
+                        {{ product.category.name }}
+                    </span>
+                    {% endif %}
+                    {% if not product.is_in_stock %}
+                    <span class="badge bg-danger small mb-1">Out of Stock</span>
+                    {% endif %}
+                    {% with avg=product.reviews.filter %}
+                    {% endwith %}
+                    <div class="mt-2">
+                        <a href="{% url 'products:product_detail' product.id %}"
+                           class="btn btn-sm btn-outline-primary">
+                            View Product
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {# --- Pagination --- #}
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?{% if query %}q={{ query }}&{% endif %}page={{ page_obj.previous_page_number }}">
+                    Previous
+                </a>
+            </li>
+            {% endif %}
+            {% for num in page_obj.paginator.page_range %}
+            <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                <a class="page-link" href="?{% if query %}q={{ query }}&{% endif %}page={{ num }}">
+                    {{ num }}
+                </a>
+            </li>
+            {% endfor %}
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?{% if query %}q={{ query }}&{% endif %}page={{ page_obj.next_page_number }}">
+                    Next
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <p class="text-muted">No products found. Try adjusting your search or filters.</p>
+    {% endif %}
+
+</div>
+{% endblock %}

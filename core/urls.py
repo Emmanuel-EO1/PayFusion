@@ -5,6 +5,7 @@ app_name = 'core'
 
 urlpatterns = [
     path('', views.home, name='home'),
+    path('search/', views.search, name='search'),
     path('admin/commission-analytics/', views.commission_analytics, name='commission_analytics'),
     path('store/<slug:slug>/', views.vendor_storefront, name='vendor_storefront'),
 ]
