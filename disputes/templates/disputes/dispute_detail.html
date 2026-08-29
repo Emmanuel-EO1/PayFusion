@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}Dispute #{{ dispute.id }} — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width:650px;">
+
+    <h2 class="mb-1">Dispute #{{ dispute.id }}</h2>
+    <p class="text-muted mb-4">
+        Order {{ dispute.order.reference }} — {{ dispute.business.name }}
+    </p>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} alert-dismissible">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card mb-3" style="border:1px solid #ddd;">
+        <div class="card-body p-4">
+
+            <div class="d-flex justify-content-between mb-3">
+                <strong>Status</strong>
+                {% if dispute.status == 'open' %}
+                    <span class="badge bg-warning text-dark">Open</span>
+                {% elif dispute.status == 'under_review' %}
+                    <span class="badge bg-primary">Under Review</span>
+                {% elif dispute.status == 'resolved' %}
+                    <span class="badge bg-success">Resolved</span>
+                {% elif dispute.status == 'escalated' %}
+                    <span class="badge bg-danger">Escalated</span>
+                {% endif %}
+            </div>
+
+            <div class="mb-3">
+                <strong>Your Reason</strong>
+                <p class="text-muted mt-1 mb-0">{{ dispute.reason }}</p>
+            </div>
+
+            {% if dispute.status == 'resolved' and dispute.resolution %}
+            <div class="mb-3">
+                <strong>Resolution</strong>
+                <p class="mt-1 mb-0">
+                    {% if dispute.resolution == 'no_refund' %}
+                        <span class="text-muted">No refund — dispute resolved in vendor's favour.</span>
+                    {% elif dispute.resolution == 'refund_issued' %}
+                        <span class="text-success">Full refund issued to your original payment method.</span>
+                    {% elif dispute.resolution == 'partial_refund' %}
+                        <span class="text-success">
+                            Partial refund of ₦{{ dispute.refund_amount|floatformat:2 }}
+                            issued to your original payment method.
+                        </span>
+                    {% elif dispute.resolution == 'escalated' %}
+                        <span class="text-danger">Escalated for further review.</span>
+                    {% endif %}
+                </p>
+            </div>
+            {% endif %}
+
+            <p class="text-muted small mb-0">
+                Raised on {{ dispute.created_at|date:"M j, Y" }}
+            </p>
+
+        </div>
+    </div>
+
+    <a href="{% url 'disputes:my_disputes' %}" class="btn btn-outline-secondary">
+        My Disputes
+    </a>
+    <a href="{% url 'users:transaction_history' %}" class="btn btn-outline-secondary ms-2">
+        Order History
+    </a>
+
+</div>
+{% endblock %}

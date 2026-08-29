@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}Disputes — {{ business.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+
+    <h2 class="mb-1">Disputes</h2>
+    <p class="text-muted mb-4">{{ business.name }}</p>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} alert-dismissible">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    {% if not disputes %}
+        <p class="text-muted">No disputes raised against this business.</p>
+    {% else %}
+        {% for dispute in disputes %}
+        <div class="card mb-3" style="border:1px solid #ddd;">
+            <div class="card-body p-4">
+
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <strong>Dispute #{{ dispute.id }}</strong>
+                        <p class="text-muted small mb-0">
+                            Order {{ dispute.order.reference }} —
+                            {{ dispute.created_at|date:"M j, Y" }}
+                        </p>
+                    </div>
+                    {% if dispute.status == 'open' %}
+                        <span class="badge bg-warning text-dark">Open</span>
+                    {% elif dispute.status == 'under_review' %}
+                        <span class="badge bg-primary">Under Review</span>
+                    {% elif dispute.status == 'resolved' %}
+                        <span class="badge bg-success">Resolved</span>
+                    {% elif dispute.status == 'escalated' %}
+                        <span class="badge bg-danger">Escalated</span>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <strong class="small">Customer's Reason</strong>
+                    <p class="text-muted small mt-1 mb-0">{{ dispute.reason }}</p>
+                </div>
+
+                {% if dispute.status == 'resolved' %}
+                <div class="mb-3">
+                    <strong class="small">Resolution</strong>
+                    <p class="mt-1 mb-0 small">
+                        {% if dispute.resolution == 'no_refund' %}
+                            <span class="text-success">No refund — resolved in your favour.</span>
+                        {% elif dispute.resolution == 'refund_issued' %}
+                            <span class="text-danger">Full refund issued to customer.</span>
+                        {% elif dispute.resolution == 'partial_refund' %}
+                            <span class="text-warning">
+                                Partial refund of ₦{{ dispute.refund_amount|floatformat:2 }} issued.
+                            </span>
+                        {% endif %}
+                    </p>
+                </div>
+                {% endif %}
+
+                {# Vendor note section — add or show existing note #}
+                {% if dispute.vendor_note %}
+                <div class="bg-light border rounded p-3 mb-3 small">
+                    <strong>Your Note (visible to admin only):</strong>
+                    <p class="mb-0 mt-1">{{ dispute.vendor_note }}</p>
+                </div>
+                {% endif %}
+
+                {% if dispute.status != 'resolved' %}
+                <form method="post"
+                      action="{% url 'disputes:add_vendor_note' dispute.id %}">
+                    {% csrf_token %}
+                    <textarea name="vendor_note" class="form-control form-control-sm mb-2"
+                              rows="3"
+                              placeholder="Add your response or context for the admin team...">{% if dispute.vendor_note %}{{ dispute.vendor_note }}{% endif %}</textarea>
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                        {% if dispute.vendor_note %}Update Note{% else %}Add Note{% endif %}
+                    </button>
+                </form>
+                {% endif %}
+
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <a href="{% url 'users:dashboard' %}" class="btn btn-outline-secondary mt-2">
+        Back to Dashboard
+    </a>
+
+</div>
+{% endblock %}

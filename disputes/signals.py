@@ -46,22 +46,11 @@ def handle_dispute_escrow(sender, instance, created, **kwargs):
         unfreeze_and_release_escrow(order)
 
     elif instance.resolution == 'refund_issued':
-        logger.warning(
-            f'Dispute #{instance.id} resolved (refund_issued) — '
-            f'escrow remains frozen for order {order.reference}. '
-            f'MANUAL ACTION REQUIRED: process refund via Paystack dashboard. '
-            f'Automated refund processing arrives in Phase 11.'
-        )
+        _process_full_refund(instance, order)
         _restore_stock_for_order(order)
 
     elif instance.resolution == 'partial_refund':
-        logger.warning(
-            f'Dispute #{instance.id} resolved (partial_refund) — '
-            f'escrow remains frozen for order {order.reference}. '
-            f'MANUAL ACTION REQUIRED: process refund via Paystack dashboard. '
-            f'Automated refund processing arrives in Phase 11. '
-            f'Stock NOT restored — item was not returned.'
-        )
+        _process_partial_refund(instance, order)
 
     elif instance.resolution == 'escalated':
         logger.info(
@@ -116,3 +105,77 @@ def _restore_stock_for_order(order):
                     f'new stock: {product.stock_quantity} | '
                     f'order: {order.reference} (full refund)'
                 )
+
+def _process_full_refund(dispute, order):
+    """
+    Full refund — entire order amount returned to customer.
+    Calls Paystack refund API, permanently removes escrow
+    from vendor wallet (escrow stays frozen, balance unchanged).
+    """
+    from transactions.service.paystack import initiate_refund
+    from transactions.models import EscrowEntry
+
+    try:
+        reference = order.transaction.reference
+        initiate_refund(reference)
+
+        # Mark escrow entry as permanently resolved —
+        # funds neither released to vendor nor available for withdrawal
+        EscrowEntry.objects.filter(
+            order=order,
+            entry_type='hold',
+        ).update(is_frozen=True)
+
+        logger.info(
+            f'Full refund processed — dispute #{dispute.id} | '
+            f'order: {order.reference} | '
+            f'amount: N{order.total_amount}'
+        )
+
+    except ValueError as e:
+        logger.error(
+            f'Full refund FAILED — dispute #{dispute.id} | '
+            f'order: {order.reference} | error: {e} | '
+            f'MANUAL ACTION REQUIRED: process refund via Paystack dashboard.'
+        )
+
+
+def _process_partial_refund(dispute, order):
+    """
+    Partial refund — refund_amount returned to customer,
+    remainder released to vendor available balance.
+    """
+    from transactions.service.paystack import initiate_refund
+    from transactions.services import unfreeze_and_release_escrow
+    from decimal import Decimal
+
+    refund_amount = dispute.refund_amount
+
+    if not refund_amount:
+        logger.error(
+            f'Partial refund FAILED — dispute #{dispute.id} | '
+            f'no refund_amount set on dispute. '
+            f'MANUAL ACTION REQUIRED.'
+        )
+        return
+
+    try:
+        reference = order.transaction.reference
+        initiate_refund(reference, amount=refund_amount)
+
+        logger.info(
+            f'Partial refund processed — dispute #{dispute.id} | '
+            f'order: {order.reference} | '
+            f'refunded: N{refund_amount}'
+        )
+
+        # Release remaining escrow to vendor
+        # (remainder after refund belongs to vendor)
+        unfreeze_and_release_escrow(order)
+
+    except ValueError as e:
+        logger.error(
+            f'Partial refund FAILED — dispute #{dispute.id} | '
+            f'order: {order.reference} | error: {e} | '
+            f'MANUAL ACTION REQUIRED: process refund via Paystack dashboard.'
+        )

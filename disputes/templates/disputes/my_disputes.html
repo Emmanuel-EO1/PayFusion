@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}My Disputes — PayFusion{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+
+    <h2 class="mb-4">My Disputes</h2>
+
+    {% if not disputes %}
+        <p class="text-muted">You have no disputes.</p>
+    {% else %}
+        {% for dispute in disputes %}
+        <div class="card mb-3" style="border:1px solid #ddd;">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong>Dispute #{{ dispute.id }}</strong>
+                        <p class="text-muted small mb-1">
+                            Order {{ dispute.order.reference }} —
+                            {{ dispute.business.name }}
+                        </p>
+                        <p class="text-muted small mb-0">
+                            {{ dispute.created_at|date:"M j, Y" }}
+                        </p>
+                    </div>
+                    <div class="text-end">
+                        {% if dispute.status == 'open' %}
+                            <span class="badge bg-warning text-dark">Open</span>
+                        {% elif dispute.status == 'under_review' %}
+                            <span class="badge bg-primary">Under Review</span>
+                        {% elif dispute.status == 'resolved' %}
+                            <span class="badge bg-success">Resolved</span>
+                        {% elif dispute.status == 'escalated' %}
+                            <span class="badge bg-danger">Escalated</span>
+                        {% endif %}
+                        <div class="mt-2">
+                            <a href="{% url 'disputes:dispute_detail' dispute.id %}"
+                               class="btn btn-sm btn-outline-primary">
+                                View
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <a href="{% url 'users:transaction_history' %}" class="btn btn-outline-secondary mt-2">
+        Back to Orders
+    </a>
+
+</div>
+{% endblock %}

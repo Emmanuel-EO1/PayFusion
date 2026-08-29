@@ -49,6 +49,10 @@
             <a href="{% url 'products:storefront_settings' data.business.id %}" class="btn btn-sm btn-outline-secondary mb-3 ms-2">
                 Storefront Settings
             </a>
+
+            <a href="{% url 'disputes:vendor_disputes' data.business.id %}" class="btn btn-sm btn-outline-danger mb-3 ms-2">
+                Disputes
+            </a>
             
             {# --- Wallet Breakdown --- #}
             <div class="row mt-3 mb-2">

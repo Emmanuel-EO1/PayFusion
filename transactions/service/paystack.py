@@ -362,3 +362,39 @@ def initiate_transfer(amount, recipient_code, reference, reason='PayFusion Vendo
     except Exception as e:
         logger.error(f'Paystack initiate_transfer error: {e} — reference: {reference}')
         return {'status': False, 'message': 'An unexpected error occurred.'}
+
+def initiate_refund(transaction_reference, amount=None):
+    """
+    Initiates a refund via Paystack.
+    amount: in Naira (Decimal). If None, full refund is processed.
+    Paystack expects amount in kobo (multiply by 100).
+    Returns the API response dict or raises ValueError on failure.
+    """
+    import requests
+    from django.conf import settings
+
+    headers = {
+        'Authorization': f'Bearer {settings.PAYSTACK_SECRET_KEY}',
+        'Content-Type': 'application/json',
+    }
+
+    payload = {'transaction': transaction_reference}
+
+    if amount is not None:
+        # Convert Naira to kobo — Paystack always works in kobo
+        payload['amount'] = int(amount * 100)
+
+    response = requests.post(
+        'https://api.paystack.co/refund',
+        json=payload,
+        headers=headers,
+    )
+
+    data = response.json()
+
+    if not data.get('status'):
+        raise ValueError(
+            f'Paystack refund failed: {data.get("message", "Unknown error")}'
+        )
+
+    return data

@@ -107,6 +107,20 @@ class Dispute(models.Model):
         null=True,
     )
 
+    refund_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Amount to refund for partial refunds. Leave blank for full refund.'
+    )
+
+    vendor_note = models.TextField(
+        blank=True,
+        null=True,
+        help_text='Vendor response or additional context for admin review.'
+    )
+
     # Admin notes on the resolution decision
     resolution_notes = models.TextField(blank=True, null=True)
 
@@ -169,3 +183,15 @@ class Dispute(models.Model):
         Resolved and closed disputes do not.
         """
         return self.status in ('open', 'under_review')
+
+class DisputeEvidence(models.Model):
+    dispute = models.ForeignKey(
+        Dispute,
+        on_delete=models.CASCADE,
+        related_name='evidence_files'
+    )
+    file = models.FileField(upload_to='dispute_evidence/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'Evidence for Dispute #{self.dispute.id}'

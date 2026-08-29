@@ -87,6 +87,12 @@
                             </a>
                         {% endif %}
                     {% endfor %}
+                    {% if order.delivery and order.delivery.status == 'delivered' %}
+                        <a href="{% url 'disputes:raise_dispute' order.reference %}"
+                        class="btn btn-sm btn-outline-danger me-2">
+                            Raise Dispute
+                        </a>
+                    {% endif %}
                 </div>
                 {% endif %}
 
