@@ -900,6 +900,8 @@ def submit_review(request, product_id):
         rating=int(rating),
         body=body,
     )
+    from core.email_service import send_review_received_vendor 
+    send_review_received_vendor(product.business, review)
 
     messages.success(request, 'Your review has been submitted.')
     return redirect('products:product_detail', id=product_id)

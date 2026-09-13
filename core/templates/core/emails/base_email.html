@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif; }
+        .wrapper { max-width: 600px; margin: 0 auto; background: #ffffff; }
+        .header { background: #1e293b; padding: 24px 32px; }
+        .header h1 { color: #ffffff; margin: 0; font-size: 22px; }
+        .header p { color: #94a3b8; margin: 4px 0 0; font-size: 13px; }
+        .content { padding: 32px; }
+        .content h2 { color: #1e293b; margin-top: 0; }
+        .content p { color: #475569; line-height: 1.6; }
+        .btn { display: inline-block; padding: 12px 24px; background: #10b981;
+               color: #ffffff; text-decoration: none; border-radius: 6px;
+               font-weight: bold; margin: 16px 0; }
+        .highlight-box { background: #f0fdf4; border-left: 4px solid #10b981;
+                         padding: 16px; margin: 16px 0; border-radius: 4px; }
+        .warning-box { background: #fff8f0; border-left: 4px solid #f59e0b;
+                       padding: 16px; margin: 16px 0; border-radius: 4px; }
+        .danger-box { background: #fef2f2; border-left: 4px solid #ef4444;
+                      padding: 16px; margin: 16px 0; border-radius: 4px; }
+        .footer { background: #f8fafc; padding: 24px 32px; border-top: 1px solid #e2e8f0; }
+        .footer p { color: #94a3b8; font-size: 12px; margin: 0; line-height: 1.6; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="header">
+        <h1>PayFusion</h1>
+        <p>Global trusted marketplace</p>
+    </div>
+    <div class="content">
+        {% block email_content %}{% endblock %}
+    </div>
+    <div class="footer">
+        <p>
+            This email was sent by PayFusion. <!-- If you have questions,
+            contact us at support@payfusion.com --> <br>
+            &copy; 2026 PayFusion. All rights reserved.
+        </p>
+    </div>
+</div>
+</body>
+</html>

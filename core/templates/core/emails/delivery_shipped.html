@@ -1,0 +1,26 @@
+{% extends 'core/emails/base_email.html' %}
+{% block email_content %}
+<h2>Your Order Has Been Shipped</h2>
+<p>Hi {{ username }},</p>
+<p>Great news — your order from {{ business_name }} is on its way.</p>
+
+<div class="highlight-box">
+    <strong>Order:</strong> {{ order_reference }}<br>
+    {% if courier %}
+    <strong>Courier:</strong> {{ courier }}<br>
+    {% endif %}
+    {% if tracking_id %}
+    <strong>Tracking ID:</strong> {{ tracking_id }}<br>
+    {% endif %}
+    {% if estimated_delivery_date %}
+    <strong>Estimated Delivery:</strong> {{ estimated_delivery_date }}<br>
+    {% endif %}
+</div>
+
+<p>Once you receive your order, please confirm delivery on PayFusion
+   so the vendor can be paid.</p>
+
+<a href="{{ site_url }}/delivery/track/{{ order_reference }}/" class="btn">
+    Track Order
+</a>
+{% endblock %}

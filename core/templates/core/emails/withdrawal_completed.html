@@ -1,0 +1,19 @@
+{% extends 'core/emails/base_email.html' %}
+{% block email_content %}
+<h2>Withdrawal Completed</h2>
+<p>Hi {{ business_name }},</p>
+<p>Your withdrawal has been successfully processed.</p>
+
+<div class="highlight-box">
+    <strong>Amount:</strong> ₦{{ amount|floatformat:2 }}<br>
+    <strong>Bank:</strong> {{ bank_name }}<br>
+    <strong>Account:</strong> ****{{ account_last4 }}<br>
+    <strong>Reference:</strong> {{ reference }}
+</div>
+
+<p>The funds should now be in your bank account.
+   <!-- If you have not received them within 24 hours, please contact your bank
+   or reach out to us at support@payfusion.com. --> </p>
+
+<a href="{{ site_url }}/users/payouts/" class="btn">View Payout History</a>
+{% endblock %}

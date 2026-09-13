@@ -1,300 +1,237 @@
 import logging
-
-from django.core.mail import send_mail
-from django.conf import settings
+from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
-from django.utils.html import strip_tags
+from django.conf import settings
 
 logger = logging.getLogger('payfusion')
 
+FROM_EMAIL = settings.DEFAULT_FROM_EMAIL
+SITE_URL = getattr(settings, 'SITE_URL', 'http://localhost:8000')
 
-# ============================================================
-# INTERNAL HELPER — Send email
-#
-# Central sending function used by all notification functions.
-# Handles errors gracefully — a failed email should never
-# crash the main payment or withdrawal flow.
-#
-# Uses Django's send_mail which works with any backend
-# configured in settings.py (SMTP, SendGrid, Mailgun, etc.)
-# ============================================================
-def _send(subject, message, recipient_email):
+
+def _send(subject, text_body, html_template, context, recipient):
     """
-    Send a plain text email to a single recipient.
-    Logs success and failure — never raises exceptions.
-
-    Args:
-        subject:         Email subject line
-        message:         Plain text email body
-        recipient_email: Recipient email address
+    Internal helper — sends an email with both plain text and HTML versions.
+    EmailMultiAlternatives sends plain text as the primary body,
+    then attaches the HTML as an alternative. Email clients that support
+    HTML show the HTML version; others fall back to plain text automatically.
     """
     try:
-        send_mail(
+        html_body = render_to_string(html_template, context)
+        msg = EmailMultiAlternatives(
             subject=subject,
-            message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[recipient_email],
-            fail_silently=False,
+            body=text_body,
+            from_email=FROM_EMAIL,
+            to=[recipient],
         )
-        logger.info(
-            f'Email sent — to: {recipient_email} | subject: {subject}'
-        )
+        msg.attach_alternative(html_body, 'text/html')
+        msg.send()
+        logger.info(f'Email sent: {subject} → {recipient}')
     except Exception as e:
-        # Never crash the main flow because of a failed email
-        # Log the error so we can investigate and resend manually
-        logger.error(
-            f'Email failed — to: {recipient_email} | '
-            f'subject: {subject} | error: {e}'
-        )
+        logger.error(f'Email failed: {subject} → {recipient} | {e}')
 
 
-# ============================================================
-# CUSTOMER EMAILS
-# ============================================================
-
-def send_payment_confirmation(user, transaction, orders):
-    """
-    Sent to customer after a successful payment.
-    Lists all vendor orders included in the transaction.
-
-    Args:
-        user:        The customer User instance
-        transaction: The master Transaction instance
-        orders:      QuerySet of Order instances linked to transaction
-    """
-    order_lines = '\n'.join([
-        f'  • {order.business.name} — ₦{order.total_amount:,.2f}'
-        for order in orders
-    ])
-
-    message = f"""Hi {user.first_name or user.email},
-
-Your payment has been confirmed.
-
-Transaction Reference: {transaction.reference}
-Total Amount: ₦{transaction.amount:,.2f}
-
-Order Breakdown:
-{order_lines}
-
-Thank you for shopping with PayFusion.
-
-— The PayFusion Team
-"""
-
+def send_payment_confirmation(user, transaction):
+    from django.utils import timezone
+    context = {
+        'user': user,
+        'amount': transaction.amount,
+        'reference': transaction.reference,
+        'date': timezone.now().strftime('%d %b %Y'),
+        'site_url': SITE_URL,
+    }
     _send(
-        subject='Your PayFusion order is confirmed',
-        message=message,
-        recipient_email=user.email,
+        subject='Payment Confirmed — PayFusion',
+        text_body=(
+            f'Hi {user.username},\n\n'
+            f'Your payment of N{transaction.amount} has been confirmed.\n'
+            f'Reference: {transaction.reference}\n\n'
+            f'— PayFusion'
+        ),
+        html_template='core/emails/payment_confirmation.html',
+        context=context,
+        recipient=user.email,
     )
 
 
-# ============================================================
-# VENDOR WITHDRAWAL EMAILS
-# ============================================================
-
-def send_withdrawal_received(business, withdrawal_request):
-    """
-    Sent to vendor when withdrawal request is received
-    and is in the hold period.
-
-    Args:
-        business:           The vendor's Business instance
-        withdrawal_request: The WithdrawalRequest instance
-    """
-    hold_date = withdrawal_request.hold_expires_at.strftime('%A, %B %d, %Y')
-    bank = withdrawal_request.bank_account
-
-    message = f"""Hi {business.owner.first_name or business.owner.email},
-
-Your withdrawal request has been received.
-
-Business:       {business.name}
-Amount:         ₦{withdrawal_request.amount:,.2f}
-Bank Account:   {bank.bank_name} ****{bank.account_number[-4:]}
-Reference:      {withdrawal_request.transaction.reference}
-
-Your funds are under our standard security hold period.
-Transfer will be initiated automatically on {hold_date}.
-
-You do not need to do anything — we will handle it from here.
-
-— The PayFusion Team
-"""
-
+def send_transfer_initiated(business, withdrawal):
+    bank = withdrawal.bank_account
+    context = {
+        'business_name': business.name,
+        'amount': withdrawal.amount,
+        'bank_name': bank.bank_name if bank else '—',
+        'account_last4': bank.account_number[-4:] if bank else '—',
+        'reference': withdrawal.transaction.reference if withdrawal.transaction else '—',
+        'site_url': SITE_URL,
+    }
     _send(
-        subject=f'Withdrawal received — funds release date: {hold_date}',
-        message=message,
-        recipient_email=business.owner.email,
+        subject='Withdrawal Initiated — PayFusion',
+        text_body=(
+            f'Hi {business.name},\n\n'
+            f'Your withdrawal of N{withdrawal.amount} has been initiated.\n\n'
+            f'— PayFusion'
+        ),
+        html_template='core/emails/withdrawal_initiated.html',
+        context=context,
+        recipient=business.owner.email,
     )
 
 
-def send_withdrawal_blocked(business, withdrawal_request):
-    """
-    Sent to vendor when withdrawal is blocked by the audit.
-    Includes the specific reason so they know what to fix.
-
-    Args:
-        business:           The vendor's Business instance
-        withdrawal_request: The WithdrawalRequest instance
-    """
-    message = f"""Hi {business.owner.first_name or business.owner.email},
-
-Your withdrawal request has been blocked.
-
-Business:  {business.name}
-Amount:    ₦{withdrawal_request.amount:,.2f}
-Reference: {withdrawal_request.transaction.reference if withdrawal_request.transaction else 'N/A'}
-
-Reason:
-{withdrawal_request.rejection_reason}
-
-Your funds have been returned to your wallet.
-
-Once you have resolved the issue above, you can submit a new withdrawal request.
-If you need assistance, please contact our support team.
-
-— The PayFusion Team
-"""
-
+def send_transfer_completed(business, withdrawal):
+    bank = withdrawal.bank_account
+    context = {
+        'business_name': business.name,
+        'amount': withdrawal.amount,
+        'bank_name': bank.bank_name if bank else '—',
+        'account_last4': bank.account_number[-4:] if bank else '—',
+        'reference': withdrawal.transaction.reference if withdrawal.transaction else '—',
+        'site_url': SITE_URL,
+    }
     _send(
-        subject='Your PayFusion withdrawal was blocked',
-        message=message,
-        recipient_email=business.owner.email,
+        subject='Withdrawal Completed — PayFusion',
+        text_body=(
+            f'Hi {business.name},\n\n'
+            f'Your withdrawal of N{withdrawal.amount} has been completed.\n\n'
+            f'— PayFusion'
+        ),
+        html_template='core/emails/withdrawal_completed.html',
+        context=context,
+        recipient=business.owner.email,
     )
 
 
-def send_withdrawal_under_review(business, withdrawal_request):
-    """
-    Sent to vendor when withdrawal is flagged for admin review
-    (large amount or suspicious activity detected).
-
-    Args:
-        business:           The vendor's Business instance
-        withdrawal_request: The WithdrawalRequest instance
-    """
-    message = f"""Hi {business.owner.first_name or business.owner.email},
-
-Your withdrawal request is currently under review by our team.
-
-Business:  {business.name}
-Amount:    ₦{withdrawal_request.amount:,.2f}
-Reference: {withdrawal_request.transaction.reference}
-
-Large withdrawals and flagged requests are reviewed within 24 hours.
-You will be notified by email once the review is complete.
-
-— The PayFusion Team
-"""
-
+def send_transfer_failed(business, withdrawal):
+    context = {
+        'business_name': business.name,
+        'amount': withdrawal.amount,
+        'reference': withdrawal.transaction.reference if withdrawal.transaction else '—',
+        'site_url': SITE_URL,
+    }
     _send(
-        subject='Your PayFusion withdrawal is under review',
-        message=message,
-        recipient_email=business.owner.email,
+        subject='Withdrawal Failed — PayFusion',
+        text_body=(
+            f'Hi {business.name},\n\n'
+            f'Your withdrawal of N{withdrawal.amount} could not be processed. '
+            f'The amount has been returned to your wallet.\n\n'
+            f'— PayFusion'
+        ),
+        html_template='core/emails/withdrawal_failed.html',
+        context=context,
+        recipient=business.owner.email,
     )
 
 
-def send_transfer_initiated(business, withdrawal_request):
-    """
-    Sent to vendor when Paystack transfer is initiated —
-    money is on its way to their bank.
-
-    Args:
-        business:           The vendor's Business instance
-        withdrawal_request: The WithdrawalRequest instance
-    """
-    bank = withdrawal_request.bank_account
-
-    message = f"""Hi {business.owner.first_name or business.owner.email},
-
-Your withdrawal is on its way.
-
-Business:     {business.name}
-Amount:       ₦{withdrawal_request.amount:,.2f}
-Bank Account: {bank.bank_name} ****{bank.account_number[-4:]}
-Reference:    {withdrawal_request.transaction.reference}
-
-Bank transfers typically take a few minutes to a few hours.
-You will receive a confirmation email once the funds land.
-
-— The PayFusion Team
-"""
-
+def send_email_verification(user, verify_url):
+    context = {
+        'username': user.username,
+        'verify_url': verify_url,
+        'site_url': SITE_URL,
+    }
     _send(
-        subject=f'Your ₦{withdrawal_request.amount:,.2f} withdrawal is on its way',
-        message=message,
-        recipient_email=business.owner.email,
+        subject='Verify your PayFusion email address',
+        text_body=(
+            f'Hi {user.username},\n\n'
+            f'Please verify your email address:\n{verify_url}\n\n'
+            f'This link expires in 7 days.\n\n'
+            f'— PayFusion'
+        ),
+        html_template='core/emails/email_verification.html',
+        context=context,
+        recipient=user.email,
     )
 
 
-def send_transfer_completed(business, withdrawal_request):
-    """
-    Sent to vendor when transfer.success webhook confirms
-    funds have reached the destination bank.
-
-    Args:
-        business:           The vendor's Business instance
-        withdrawal_request: The WithdrawalRequest instance
-    """
-    bank = withdrawal_request.bank_account
-
-    message = f"""Hi {business.owner.first_name or business.owner.email},
-
-Your withdrawal has been completed successfully.
-
-Business:     {business.name}
-Amount:       ₦{withdrawal_request.amount:,.2f}
-Bank Account: {bank.bank_name} ****{bank.account_number[-4:]}
-Reference:    {withdrawal_request.transaction.reference}
-
-The funds have been sent to your bank account.
-Please allow a few hours for your bank to reflect the credit.
-
-— The PayFusion Team
-"""
-
+def send_dispute_raised_vendor(business, dispute):
+    context = {
+        'business_name': business.name,
+        'order_reference': dispute.order.reference,
+        'dispute_id': dispute.id,
+        'reason': dispute.reason,
+        'business_id': business.id,
+        'site_url': SITE_URL,
+    }
     _send(
-        subject=f'₦{withdrawal_request.amount:,.2f} successfully sent to your bank',
-        message=message,
-        recipient_email=business.owner.email,
+        subject=f'Dispute Raised on Order {dispute.order.reference} — PayFusion',
+        text_body=(
+            f'Hi {business.name},\n\n'
+            f'A dispute has been raised on order {dispute.order.reference}.\n'
+            f'Reason: {dispute.reason}\n\n'
+            f'Our team will review within 7 days.\n\n'
+            f'— PayFusion'
+        ),
+        html_template='core/emails/dispute_raised_vendor.html',
+        context=context,
+        recipient=business.owner.email,
     )
 
 
-def send_transfer_failed(business, withdrawal_request):
-    """
-    Sent to vendor when transfer.failed webhook confirms
-    the bank transfer was rejected. Funds are auto-reversed.
-
-    Args:
-        business:           The vendor's Business instance
-        withdrawal_request: The WithdrawalRequest instance
-    """
-    bank = withdrawal_request.bank_account
-
-    message = f"""Hi {business.owner.first_name or business.owner.email},
-
-Unfortunately your bank transfer could not be completed.
-
-Business:     {business.name}
-Amount:       ₦{withdrawal_request.amount:,.2f}
-Bank Account: {bank.bank_name} ****{bank.account_number[-4:]}
-Reference:    {withdrawal_request.transaction.reference}
-
-Your funds have been automatically returned to your PayFusion wallet.
-
-This can happen due to:
-  • Incorrect account details
-  • Bank account restrictions
-  • Temporary bank processing issues
-
-Please verify your bank account details and try again.
-If the issue persists, please contact our support team.
-
-— The PayFusion Team
-"""
-
+def send_dispute_resolved_customer(user, dispute):
+    context = {
+        'username': user.username,
+        'order_reference': dispute.order.reference,
+        'resolution': dispute.resolution,
+        'amount': dispute.order.total_amount,
+        'refund_amount': dispute.refund_amount,
+        'site_url': SITE_URL,
+    }
     _send(
-        subject=f'Transfer failed — ₦{withdrawal_request.amount:,.2f} returned to your wallet',
-        message=message,
-        recipient_email=business.owner.email,
+        subject=f'Your Dispute Has Been Resolved — PayFusion',
+        text_body=(
+            f'Hi {user.username},\n\n'
+            f'Your dispute for order {dispute.order.reference} has been resolved.\n'
+            f'Resolution: {dispute.get_resolution_display()}\n\n'
+            f'— PayFusion'
+        ),
+        html_template='core/emails/dispute_resolved_customer.html',
+        context=context,
+        recipient=user.email,
+    )
+
+
+def send_delivery_shipped(user, delivery):
+    context = {
+        'username': user.username,
+        'business_name': delivery.order.business.name,
+        'order_reference': delivery.order.reference,
+        'courier': delivery.courier,
+        'tracking_id': delivery.tracking_id,
+        'estimated_delivery_date': (
+            delivery.estimated_delivery_date.strftime('%d %b %Y')
+            if delivery.estimated_delivery_date else None
+        ),
+        'site_url': SITE_URL,
+    }
+    _send(
+        subject=f'Your Order Has Been Shipped — PayFusion',
+        text_body=(
+            f'Hi {user.username},\n\n'
+            f'Your order {delivery.order.reference} has been shipped.\n\n'
+            f'— PayFusion'
+        ),
+        html_template='core/emails/delivery_shipped.html',
+        context=context,
+        recipient=user.email,
+    )
+
+
+def send_review_received_vendor(business, review):
+    context = {
+        'business_name': business.name,
+        'product_name': review.product.name,
+        'product_id': review.product.id,
+        'rating': review.rating,
+        'review_body': review.body,
+        'site_url': SITE_URL,
+    }
+    _send(
+        subject=f'New Review on {review.product.name} — PayFusion',
+        text_body=(
+            f'Hi {business.name},\n\n'
+            f'A customer left a {review.rating}★ review on {review.product.name}.\n'
+            f'"{review.body}"\n\n'
+            f'— PayFusion'
+        ),
+        html_template='core/emails/review_received_vendor.html',
+        context=context,
+        recipient=business.owner.email,
     )

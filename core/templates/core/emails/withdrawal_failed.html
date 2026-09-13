@@ -1,0 +1,20 @@
+{% extends 'core/emails/base_email.html' %}
+{% block email_content %}
+<h2>Withdrawal Failed</h2>
+<p>Hi {{ business_name }},</p>
+<p>Unfortunately your withdrawal could not be processed.</p>
+
+<div class="danger-box">
+    <strong>Amount:</strong> ₦{{ amount|floatformat:2 }}<br>
+    <strong>Reference:</strong> {{ reference }}<br>
+    <strong>Reason:</strong> Bank transfer failed
+</div>
+
+<p>The full amount has been returned to your PayFusion wallet.
+   Your available balance has been restored.</p>
+
+<p>Please verify your bank account details are correct and try again.
+   If the problem persists, contact your bank.</p>
+
+<a href="{{ site_url }}/users/dashboard/" class="btn">Go to Dashboard</a>
+{% endblock %}

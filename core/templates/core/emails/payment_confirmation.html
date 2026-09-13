@@ -1,0 +1,19 @@
+{% extends 'core/emails/base_email.html' %}
+{% block email_content %}
+<h2>Payment Confirmed</h2>
+<p>Hi {{ user.username }},</p>
+<p>Your payment of <strong>₦{{ amount|floatformat:2 }}</strong> has been confirmed.</p>
+
+<div class="highlight-box">
+    <strong>Order Reference:</strong> {{ reference }}<br>
+    <strong>Amount Paid:</strong> ₦{{ amount|floatformat:2 }}<br>
+    <strong>Date:</strong> {{ date }}
+</div>
+
+<p>Your vendor has been notified and will prepare your order shortly.
+   You can track your delivery from your order history.</p>
+
+<a href="{{ site_url }}/users/history/" class="btn">View Order History</a>
+
+<p>Thank you for shopping on PayFusion.</p>
+{% endblock %}

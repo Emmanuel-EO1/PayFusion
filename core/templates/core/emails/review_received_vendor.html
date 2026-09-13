@@ -1,0 +1,18 @@
+{% extends 'core/emails/base_email.html' %}
+{% block email_content %}
+<h2>New Review on Your Product</h2>
+<p>Hi {{ business_name }},</p>
+<p>A customer has left a review on one of your products.</p>
+
+<div class="highlight-box">
+    <strong>Product:</strong> {{ product_name }}<br>
+    <strong>Rating:</strong> {{ rating }}★<br>
+    <strong>Review:</strong> {{ review_body }}
+</div>
+
+<p>You can respond to this review from the product page.</p>
+
+<a href="{{ site_url }}/products/{{ product_id }}/" class="btn">
+    View Review
+</a>
+{% endblock %}

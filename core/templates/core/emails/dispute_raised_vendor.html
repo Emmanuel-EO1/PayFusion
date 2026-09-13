@@ -1,0 +1,19 @@
+{% extends 'core/emails/base_email.html' %}
+{% block email_content %}
+<h2>A Dispute Has Been Raised</h2>
+<p>Hi {{ business_name }},</p>
+<p>A customer has raised a dispute against one of your orders.</p>
+
+<div class="warning-box">
+    <strong>Order:</strong> {{ order_reference }}<br>
+    <strong>Dispute #:</strong> {{ dispute_id }}<br>
+    <strong>Reason:</strong> {{ reason }}
+</div>
+
+<p>Our team will review this dispute within 7 days.
+   You can log in to add your response or context to help the review.</p>
+
+<a href="{{ site_url }}/disputes/vendor/{{ business_id }}/" class="btn">
+    View Dispute
+</a>
+{% endblock %}

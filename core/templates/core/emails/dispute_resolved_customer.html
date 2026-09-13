@@ -1,0 +1,30 @@
+{% extends 'core/emails/base_email.html' %}
+{% block email_content %}
+<h2>Your Dispute Has Been Resolved</h2>
+<p>Hi {{ username }},</p>
+<p>We have completed our review of your dispute for order {{ order_reference }}.</p>
+
+{% if resolution == 'refund_issued' %}
+<div class="highlight-box">
+    <strong>Outcome:</strong> Full refund approved<br>
+    <strong>Amount:</strong> ₦{{ amount|floatformat:2 }}<br>
+    The refund has been processed to your original payment method.
+    Please allow 3-5 business days for it to reflect.
+</div>
+{% elif resolution == 'partial_refund' %}
+<div class="highlight-box">
+    <strong>Outcome:</strong> Partial refund approved<br>
+    <strong>Refund Amount:</strong> ₦{{ refund_amount|floatformat:2 }}<br>
+    The refund has been processed to your original payment method.
+    Please allow 3-5 business days for it to reflect.
+</div>
+{% elif resolution == 'no_refund' %}
+<div class="warning-box">
+    <strong>Outcome:</strong> No refund<br>
+    After reviewing the evidence, we were unable to approve a refund
+    for this dispute.
+</div>
+{% endif %}
+
+<a href="{{ site_url }}/disputes/my-disputes/" class="btn">View Dispute</a>
+{% endblock %}
