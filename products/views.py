@@ -893,14 +893,14 @@ def submit_review(request, product_id):
             messages.error(request, error)
         return render(request, 'products/submit_review.html', {'product': product})
 
-    Review.objects.create(
+    review = Review.objects.create(
         product=product,
         user=request.user,
         order=delivered_order,
         rating=int(rating),
         body=body,
     )
-    from core.email_service import send_review_received_vendor 
+    from core.email_service import send_review_received_vendor
     send_review_received_vendor(product.business, review)
 
     messages.success(request, 'Your review has been submitted.')
